@@ -1,0 +1,4 @@
+
+dependencias:
+
+ pip install mesa
