@@ -29,6 +29,15 @@ class SustainabilityModel(Model):
         self.G = graph
         self.grid = NetworkGrid(self.G)  # Mesa's NetworkGrid
         self.schedule = RandomActivation(self)
+
+        self.data_collector = DataCollector(
+            model_reporters={
+                "SustainableChoices": self.calculate_sustainable_choices,
+                "CO2Emissions": self.calculate_CO2_emissions,
+            },
+            agent_reporters={"SustainableChoice": "sustainable_choice"},
+        )
+
         company_id = 0
         for company_count, company_type in companies:
             for _ in range(company_count):
@@ -43,9 +52,10 @@ class SustainabilityModel(Model):
         transports = ["car", "bicycle", "public", "walking"]
 
         company_agents = self.schedule.agents[:self.num_companies]
+        probs, types = zip(*worker_types_distribution)
+
         for i in range(num_workers):
-            worker_type = self.random.choices(worker_types_distribution)    # TODO: Make this work
-            print(worker_type)
+            worker_type = self.random.choices(types, weights=probs, k=1)[0]
 
             transport = self.random.choice(transports)
             company = self.random.choice(company_agents)
@@ -58,8 +68,23 @@ class SustainabilityModel(Model):
             # TODO: x, y 
             # self.grid.place_agent(worker, (x, y))
 
+    def calculate_sustainable_choices(self):
+        sustainable_workers = sum(
+            1
+            for a in self.schedule.agents
+            if isinstance(a, WorkerAgent) and a.sustainable_choice
+        )
+        return sustainable_workers / self.num_agents
+
+    def calculate_CO2_emissions(self):
+        # Placeholder for CO2 emissions calculation
+        return 0
+
     def step(self):
-        pass
+        self.data_collector.collect(self)
+        self.schedule.step()
+
+
 def load_graph(center_point, distance=5000):
     G = ox.graph_from_point(center_point=center_point, dist=distance)
     return G
@@ -81,3 +106,7 @@ if __name__ == "__main__":
 
     for i in range(100):
         model.step()
+
+    # Access the collected data for analysis
+    results = model.data_collector.get_model_vars_dataframe()
+    print(results)
