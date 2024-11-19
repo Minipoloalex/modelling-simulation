@@ -11,6 +11,8 @@ from company_agent import CompanyAgent
 from typing import Optional
 import random
 
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 class SustainabilityModel(Model):
     def __init__(
@@ -50,10 +52,10 @@ class SustainabilityModel(Model):
                 "CO2Emissions": self.calculate_CO2_emissions, # think on how we can change these in order to have a good calculation
                 "Time Spent in transports per agent": self.calculate_time_spent_in_transports,
                 "Number of times each transport was used overall": self.calculate_times_each_transport_was_used,
-                "Which transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
+                "How many times each transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
             },
             agent_reporters={"SustainableChoice": "sustainable_choice"},
-        )
+        ) # Now we need to plot all these information at the end of the simulation for better visualization
 
         possible_company_nodes = self.grid.get_neighborhood(
             node_id=center_node, include_center=True, radius=company_radius
@@ -111,17 +113,30 @@ class SustainabilityModel(Model):
         total_times_bycicle = 0
         total_times_electric_scooter = 0
         total_times_walk = 0
-        return 0    
+        for agent in self.schedule.agents:
+            total_times_car += agent.kms_car[0]
+            total_times_bycicle += agent.kms_bycicle[0]
+            total_times_electric_scooter += agent.kms_electric_scooter[0]
+            total_times_walk += agent.kms_walk[0]
+        final_dict = {"Total times car was used": total_times_car, "Total times bycicle was used": total_times_bycicle, "Total times electric scooter was used": total_times_electric_scooter, "Total times walk was used": total_times_walk}
+        return final_dict    
     
     def calculate_times_each_transport_was_used_per_agent(self):
-        return 0
-
+        final_dict = {}
+        for agent in self.schedule.agents:
+            total_times_car = agent.kms_car[0]
+            total_times_bycicle = agent.kms_bycicle[0]
+            total_times_electric_scooter = agent.kms_electric_scooter[0]
+            total_times_walk = agent.kms_walk[0]
+            final_dict[agent.unique_id] = {"Total times car was used": total_times_car, "Total times bycicle was used": total_times_bycicle, "Total times electric scooter was used": total_times_electric_scooter, "Total times walk was used": total_times_walk}
+        return final_dict  
+    
     def calculate_time_spent_in_transports(self):
         final_dict = {}
         for agent in self.schedule.agents:
             if isinstance(agent, WorkerAgent):
                 time_kms_Car = agent.kms_car[1] / 40 # kms / 40km/h = time in hours
-                time_kms_e_scooter = agent.kms_electric_scooter[1] * 15 # kms / 15km/h = time in hours
+                time_kms_e_scooter = agent.kms_electric_scooter[1] * 12 # kms / 12km/h = time in hours
                 time_kms_walk = agent.kms_walk[1] /3.5 # kms / 3.5km/h = time in hours
                 time_kms_bycicle = agent.kms_bycicle[1] / 15 # kms / 15km/h = time in hours
                 final_dict[agent.unique_id] = {"Time spent driving car": time_kms_Car, "Time spent using an electrical scooter": time_kms_e_scooter, "Time spent walking:": time_kms_walk, "Time spent bycicling":  time_kms_bycicle}
@@ -198,4 +213,16 @@ if __name__ == "__main__":
 
     # Access the collected data for analysis
     results = model.data_collector.get_model_vars_dataframe()
-    print(results)
+    #print(results)
+    results.head() #need to understand what the columns refer to
+    # Start plotting statistics
+    # SustainableChoices --> How many sustainable choices were made per day
+    # g = sns.lineplot(data=results)
+    # g.set(title="Sustainable Choices over Time", ylabel="Sustainable Choices", xlabel="Iterations")
+    
+    # CO2Emissions --> How CO2 emissions changed over time 
+    # Time Spent in transports per agent --> Table to display this information where each row represents an agent
+    # Number of times each transport was used overall --> the number of times each transport was used during the iterations
+    # Which transport was used per agent --> Table to display this information where each row represents an agent
+    
+
