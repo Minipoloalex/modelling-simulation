@@ -15,6 +15,11 @@ class WorkerAgent(Agent):
         self.preferred_transport = preferred_transport
         self.company = company
         self.sustainable_choice = False
+        self.kms_car = (0,0) #tuples so we can know the kms and how many times he used each transport
+        self.kms_bycicle = (0,0)
+        self.kms_walk = (0,0)
+        self.kms_electric_scooter = (0,0)
+        self.activities_during_day = []
         self.home_node = home_node
 
         # Define here limits for the choices of person (choices of transports given distance to work)

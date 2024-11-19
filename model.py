@@ -47,7 +47,10 @@ class SustainabilityModel(Model):
         self.data_collector = DataCollector(
             model_reporters={
                 "SustainableChoices": self.calculate_sustainable_choices,
-                "CO2Emissions": self.calculate_CO2_emissions,
+                "CO2Emissions": self.calculate_CO2_emissions, # think on how we can change these in order to have a good calculation
+                "Time Spent in transports per agent": self.calculate_time_spent_in_transports,
+                "Number of times each transport was used overall": self.calculate_times_each_transport_was_used,
+                "Which transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
             },
             agent_reporters={"SustainableChoice": "sustainable_choice"},
         )
@@ -69,7 +72,7 @@ class SustainabilityModel(Model):
 
                 company_id += 1
 
-        transports = ["car", "bicycle", "walking"]
+        transports = ["car", "bicycle", "electric scooters", "walking"] #electric scooters = trotinete elétrica
 
         company_agents = self.schedule.agents[: self.num_companies]
         probs, types = zip(*worker_types_distribution)
@@ -103,9 +106,34 @@ class SustainabilityModel(Model):
         )
         return sustainable_workers / self.num_agents
 
-    def calculate_CO2_emissions(self):
-        # Placeholder for CO2 emissions calculation
+    def calculate_times_each_transport_was_used(self):
+        total_times_car = 0
+        total_times_bycicle = 0
+        total_times_electric_scooter = 0
+        total_times_walk = 0
+        return 0    
+    
+    def calculate_times_each_transport_was_used_per_agent(self):
         return 0
+
+    def calculate_time_spent_in_transports(self):
+        final_dict = {}
+        for agent in self.schedule.agents:
+            if isinstance(agent, WorkerAgent):
+                time_kms_Car = agent.kms_car[1] / 40 # kms / 40km/h = time in hours
+                time_kms_e_scooter = agent.kms_electric_scooter[1] * 15 # kms / 15km/h = time in hours
+                time_kms_walk = agent.kms_walk[1] /3.5 # kms / 3.5km/h = time in hours
+                time_kms_bycicle = agent.kms_bycicle[1] / 15 # kms / 15km/h = time in hours
+                final_dict[agent.unique_id] = {"Time spent driving car": time_kms_Car, "Time spent using an electrical scooter": time_kms_e_scooter, "Time spent walking:": time_kms_walk, "Time spent bycicling":  time_kms_bycicle}
+        return final_dict
+    
+    def calculate_CO2_emissions(self):
+        for agent in self.schedule.agents:
+            if isinstance(agent, WorkerAgent):
+                CO2_kms_Car = agent.kms_car * 250 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+                CO2_kms_e_scooter = agent.kms_electric_scooter * 67 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+        return CO2_kms_Car + CO2_kms_e_scooter
+
 
     def step(self):
         self.data_collector.collect(self)
