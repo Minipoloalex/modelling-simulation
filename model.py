@@ -9,6 +9,7 @@ from worker_agent import WorkerAgent, WorkerType
 from company_agent import CompanyAgent
 
 from typing import Optional
+import random
 
 
 class SustainabilityModel(Model):
@@ -139,15 +140,26 @@ class SustainabilityModel(Model):
         self.schedule.step()
 
 
-def load_graph(center_point, distance=5000):
+def load_graph(center_point, distance=5000) -> nx.Graph:
     G = ox.graph_from_point(center_point=center_point, dist=distance)
     return G
-
 
 def get_closest_node(G, point):
     # Get the node closest to the center point
     closest_node = ox.distance.nearest_nodes(G, X=[point[1]], Y=[point[0]])
     return closest_node[0]
+
+def get_shortest_path(graph: nx.Graph, source, target):
+    return nx.shortest_path(graph, source, target, weight="length")
+
+def get_total_distance(graph: nx.Graph, path: list[int]) -> float:
+    total_distance = 0.0
+
+    # Iterate over consecutive pairs in the path
+    for u, v in zip(path[:-1], path[1:]):
+        mn_edge = min(graph[u][v].values(), key=lambda edge: edge["length"])
+        total_distance += mn_edge["length"]
+    return total_distance
 
 
 # Running/Testing the model
@@ -176,6 +188,13 @@ if __name__ == "__main__":
 
     for i in range(100):
         model.step()
+
+    random_nodes = random.sample(sorted(graph.nodes), 2)
+    print(f"Random nodes: {random_nodes}")
+    shortest_path = get_shortest_path(graph, random_nodes[0], random_nodes[1])
+    print(len(shortest_path))
+    total_distance = get_total_distance(graph, shortest_path)
+    print(total_distance)
 
     # Access the collected data for analysis
     results = model.data_collector.get_model_vars_dataframe()
