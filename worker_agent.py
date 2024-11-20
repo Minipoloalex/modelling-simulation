@@ -1,6 +1,6 @@
 from mesa import Agent
 from enum import Enum
-
+import math
 
 class WorkerType(Enum):
     ENVIROMENTALLY_CONSCIOUS = 1
@@ -22,30 +22,21 @@ class WorkerAgent(Agent):
         self.activities_during_day = []
         self.home_node = home_node
 
+        source = self.model.graph.nodes[self.home_node]
+        target = self.company.work_node
+        self.distance_to_work = self.model.get_total_distance(
+            self.model.get_shortest_path(self.model.graph, source, target)
+        )
+
         # Define here limits for the choices of person (choices of transports given distance to work)
 
     def step(self):
         company_policy = self.company.policy
-
         # Get agents close to the agent (or from the same company)
         if company_policy == 0:
-            # if distance to work very small: choose walking
-            # if distance to work small: choose bicycle
-            # if distance to work large: choose car
             # different thresholds for each worker type
-            # too many cars (traffic): may choose bicycle
+            # too many cars (traffic): may choose bicycle?
             # TODO: add randomness
-            distance_to_work = None
             many_cars = None
-            walk, bike, bike_limit = 1, 5, 10
-            if distance_to_work < walk:
-                # Choose walk
-                pass
-            elif distance_to_work < bike or (distance_to_work < bike_limit and many_cars):
-                # Choose bike
-                pass
-            else:
-                # Choose car
-                pass
 
         # self.sustainable_choice: Depend on company policy and worker type (and other factors)
