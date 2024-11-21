@@ -35,7 +35,8 @@ class SustainabilityModel(Model):
             companies = [(3, policy1), (2, policy2), (1, policy3)]
             
         """
-        super().__init__(seed)
+        super().__init__()
+        self.random = random.Random(seed)  # Set seed for randomization manually
         self.num_companies = sum(company[0] for company in companies)
         self.num_workers = num_workers
         self.num_agents = self.num_workers + self.num_companies
