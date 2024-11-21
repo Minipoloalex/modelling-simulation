@@ -10,7 +10,8 @@ class WorkerType(Enum):
 
 class WorkerAgent(Agent):
     def __init__(self, unique_id, model, worker_type, preferred_transport, company, home_node: int):
-        super().__init__(unique_id, model)
+        self.unique_id = unique_id  # Set unique ID
+        self.model = model          # Set modelself.worker_type = worker_type
         self.worker_type = worker_type
         self.preferred_transport = preferred_transport
         self.company = company
@@ -21,6 +22,7 @@ class WorkerAgent(Agent):
         self.kms_electric_scooter = (0,0)
         self.activities_during_day = []
         self.home_node = home_node
+        self.pos = None  # Initialize position attribute
 
         # Define here limits for the choices of person (choices of transports given distance to work)
 
