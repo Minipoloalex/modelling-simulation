@@ -115,21 +115,23 @@ class SustainabilityModel(Model):
         total_times_electric_scooter = 0
         total_times_walk = 0
         for agent in self.schedule.agents:
-            total_times_car += agent.kms_car[0]
-            total_times_bycicle += agent.kms_bycicle[0]
-            total_times_electric_scooter += agent.kms_electric_scooter[0]
-            total_times_walk += agent.kms_walk[0]
+            if isinstance(agent, WorkerAgent):
+                total_times_car += agent.kms_car[0]
+                total_times_bycicle += agent.kms_bycicle[0]
+                total_times_electric_scooter += agent.kms_electric_scooter[0]
+                total_times_walk += agent.kms_walk[0]
         final_dict = {"Total times car was used": total_times_car, "Total times bycicle was used": total_times_bycicle, "Total times electric scooter was used": total_times_electric_scooter, "Total times walk was used": total_times_walk}
         return final_dict    
     
     def calculate_times_each_transport_was_used_per_agent(self):
         final_dict = {}
         for agent in self.schedule.agents:
-            total_times_car = agent.kms_car[0]
-            total_times_bycicle = agent.kms_bycicle[0]
-            total_times_electric_scooter = agent.kms_electric_scooter[0]
-            total_times_walk = agent.kms_walk[0]
-            final_dict[agent.unique_id] = {"Total times car was used": total_times_car, "Total times bycicle was used": total_times_bycicle, "Total times electric scooter was used": total_times_electric_scooter, "Total times walk was used": total_times_walk}
+            if isinstance(agent, WorkerAgent):
+                total_times_car = agent.kms_car[0]
+                total_times_bycicle = agent.kms_bycicle[0]
+                total_times_electric_scooter = agent.kms_electric_scooter[0]
+                total_times_walk = agent.kms_walk[0]
+                final_dict[agent.unique_id] = {"Total times car was used": total_times_car, "Total times bycicle was used": total_times_bycicle, "Total times electric scooter was used": total_times_electric_scooter, "Total times walk was used": total_times_walk}
         return final_dict  
     
     def calculate_time_spent_in_transports(self):
@@ -215,11 +217,12 @@ if __name__ == "__main__":
     # Access the collected data for analysis
     results = model.data_collector.get_model_vars_dataframe()
     #print(results)
-    results.head() #need to understand what the columns refer to
+    print(results.head()) #need to understand what the columns refer to
+    
     # Start plotting statistics
     # SustainableChoices --> How many sustainable choices were made per day
-    # g = sns.lineplot(data=results)
-    # g.set(title="Sustainable Choices over Time", ylabel="Sustainable Choices", xlabel="Iterations")
+    g = sns.lineplot(data=results["SustainableChoices"])
+    g.set(title="Sustainable Choices over Time", ylabel="Sustainable Choices", xlabel="Iterations")
     
     # CO2Emissions --> How CO2 emissions changed over time 
     # Time Spent in transports per agent --> Table to display this information where each row represents an agent
