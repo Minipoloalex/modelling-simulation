@@ -1,6 +1,7 @@
 from mesa import Agent
 from enum import Enum
 import random
+import math
 
 class WorkerType(Enum):
     ENVIROMENTALLY_CONSCIOUS = 1
@@ -20,9 +21,14 @@ class WorkerAgent(Agent):
         self.kms_bycicle = (0,0)
         self.kms_walk = (0,0)
         self.kms_electric_scooter = (0,0)
-        self.activities_during_day = []
         self.home_node = home_node
         self.pos = None  # Initialize position attribute
+
+        source = self.model.graph.nodes[self.home_node]
+        target = self.company.work_node
+        self.distance_to_work = self.model.get_total_distance(
+            self.model.get_shortest_path(self.model.graph, source, target)
+        )
 
         # Define here limits for the choices of person (choices of transports given distance to work)
 
@@ -44,4 +50,5 @@ class WorkerAgent(Agent):
             elif transport_chosen == "electric scooters":
                 self.kms_electric_scooter = (self.kms_electric_scooter[0] + 1, self.kms_electric_scooter[1] + self.distance_to_work)
             many_cars = None
+
         # self.sustainable_choice: Depend on company policy and worker type (and other factors)

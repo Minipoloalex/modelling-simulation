@@ -2,10 +2,11 @@ from mesa import Agent
 
 # Define Company Agent
 class CompanyAgent(Agent):
-    def __init__(self, unique_id, model, policy):
+    def __init__(self, unique_id, model, policy, work_node):
         self.unique_id = unique_id  # Manually set unique_id
         self.model = model          # Manually set model
         self.policy = policy        # Policy for this company (0 = no policy, 1 = full policy)
+        self.work_node = work_node
         self.pos = None             # Initialize position attribute
 
     def step(self):

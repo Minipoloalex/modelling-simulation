@@ -43,8 +43,8 @@ class SustainabilityModel(Model):
         self.num_workers = num_workers
         self.num_agents = self.num_workers + self.num_companies
 
-        self.G = graph
-        self.grid = NetworkGrid(self.G)
+        self.graph = graph
+        self.grid = NetworkGrid(self.graph)
         self.schedule = RandomActivation(self)
 
         self.data_collector = DataCollector(
@@ -69,7 +69,7 @@ class SustainabilityModel(Model):
                 # Get the node to place the company at
                 node = company_nodes.pop()
 
-                company = CompanyAgent(company_id, self, company_type)
+                company = CompanyAgent(company_id, self, company_type, node)
                 self.grid.place_agent(company, node)
                 self.schedule.add(company)
 
@@ -152,6 +152,18 @@ class SustainabilityModel(Model):
                 CO2_kms_e_scooter = agent.kms_electric_scooter * 67 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
         return CO2_kms_Car + CO2_kms_e_scooter
 
+    def get_shortest_path(self, graph: nx.Graph, source, target) -> list[int]:
+        return nx.shortest_path(graph, source, target, weight="length")
+
+    def get_total_distance(graph: nx.Graph, path: list[int]) -> float:
+        total_distance = 0.0
+
+        # Iterate over consecutive pairs in the path
+        for u, v in zip(path[:-1], path[1:]):
+            mn_edge = min(graph[u][v].values(), key=lambda edge: edge["length"])
+            total_distance += mn_edge["length"]
+        return total_distance
+
 
     def step(self):
         self.data_collector.collect(self)
@@ -167,17 +179,6 @@ def get_closest_node(G, point):
     closest_node = ox.distance.nearest_nodes(G, X=[point[1]], Y=[point[0]])
     return closest_node[0]
 
-def get_shortest_path(graph: nx.Graph, source, target):
-    return nx.shortest_path(graph, source, target, weight="length")
-
-def get_total_distance(graph: nx.Graph, path: list[int]) -> float:
-    total_distance = 0.0
-
-    # Iterate over consecutive pairs in the path
-    for u, v in zip(path[:-1], path[1:]):
-        mn_edge = min(graph[u][v].values(), key=lambda edge: edge["length"])
-        total_distance += mn_edge["length"]
-    return total_distance
 
 
 # Running/Testing the model
@@ -209,9 +210,9 @@ if __name__ == "__main__":
 
     random_nodes = random.sample(sorted(graph.nodes), 2)
     print(f"Random nodes: {random_nodes}")
-    shortest_path = get_shortest_path(graph, random_nodes[0], random_nodes[1])
+    shortest_path = model.get_shortest_path(graph, random_nodes[0], random_nodes[1])
     print(len(shortest_path))
-    total_distance = get_total_distance(graph, shortest_path)
+    total_distance = model.get_total_distance(graph, shortest_path)
     print(total_distance)
 
     # Access the collected data for analysis
