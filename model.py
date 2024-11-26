@@ -11,9 +11,10 @@ import matplotlib.pyplot as plt
 from worker_agent import WorkerAgent, WorkerType
 from company_agent import CompanyAgent
 
+from graph_utils import load_graphs, random_position_within_radius
 from typing import Optional
-import random
-ox.settings.log_console = True
+
+
 
 class SustainabilityModel(Model):
     def __init__(
@@ -21,8 +22,8 @@ class SustainabilityModel(Model):
         num_workers: int,
         worker_types_distribution: list,
         companies: list,
-        graph: nx.Graph,
-        center_node: int,
+        graphs: dict[str, nx.Graph],
+        center_position: tuple[float, float],
         company_radius: int = 1000,
         agent_home_radius: int = 5000,
         seed: Optional[int] = None,
@@ -43,8 +44,11 @@ class SustainabilityModel(Model):
         self.num_workers = num_workers
         self.num_agents = self.num_workers + self.num_companies
 
-        self.graph = graph
-        self.grid = NetworkGrid(self.graph)
+        self.graphs = graphs
+        self.grids = {
+            type: NetworkGrid(graph)
+            for type, graph in self.graphs.items()
+        }
         self.schedule = RandomActivation(self)
 
         self.data_collector = DataCollector(
@@ -58,43 +62,37 @@ class SustainabilityModel(Model):
             agent_reporters={"SustainableChoice": "sustainable_choice"},
         )
 
-        possible_company_nodes = self.grid.get_neighborhood(
-            node_id=center_node, include_center=True, radius=company_radius
-        )
-        company_nodes = self.random.sample(possible_company_nodes, self.num_companies)
+        self.company_agents = self.__init_companies(center_position, companies)
+        self.worker_agents = self.__init_agents(center_position, worker_types_distribution)
 
+
+    def __init_companies(self, center_position: tuple[float, float], companies):
         for company_count, company_type in companies:
             for _ in range(company_count):
-                # Get the node to place the company at
-                node = company_nodes.pop()
-
-                company = CompanyAgent(self, company_type)
-                self.grid.place_agent(company, node)
+                position = random_position_within_radius(self.random, center_position, 1000)
+                company = CompanyAgent(self, company_type, position)
+                for type in self.grids.keys():
+                    agent = Agent(self)
+                    self.grids[type].place_agent(agent, company.location_nodes[type])   # Different agent to represent the company in each grid
+                    # self.grids[type].place_agent(company, company.location_nodes[type])
                 self.schedule.add(company)
+        return self.schedule.agents[: self.num_companies]
 
+    def __init_agents(self, center_position: tuple[float, float], worker_types_distribution):
+        probs, types = zip(*worker_types_distribution)
         transports = ["car", "bicycle", "electric scooters", "walking"] #electric scooters = trotinete elétrica
 
-        company_agents = self.schedule.agents[: self.num_companies]
-        probs, types = zip(*worker_types_distribution)
-
-        possible_agent_nodes = self.grid.get_neighborhood(
-            node_id=center_node, include_center=True, radius=agent_home_radius
-        )
-        # Do not allow agents to live at company nodes
-        possible_agent_nodes = set(possible_agent_nodes) - set(company_nodes)
-        agent_nodes = self.random.sample(sorted(possible_agent_nodes), self.num_workers)
-
-        for _ in range(num_workers):
+        for _ in range(self.num_workers):
             worker_type = self.random.choices(types, weights=probs, k=1)[0] # Get worker type according to distribution
-            home_node = agent_nodes.pop()   # Get living location of agent
-
+            position = random_position_within_radius(self.random, center_position, 5000)
             transport = self.random.choice(transports)      # Random preferred transport
-            company = self.random.choice(company_agents)    # Random company
+            company = self.random.choice(self.company_agents)    # Random company works in
 
-            worker = WorkerAgent(self, worker_type, transport, company, home_node)
-
+            worker = WorkerAgent(self, worker_type, transport, company, position)   # Should be place in grids later
             self.schedule.add(worker)
-            self.grid.place_agent(worker, home_node)
+
+        return self.agents[self.num_companies :]
+
 
     def calculate_sustainable_choices(self):
         sustainable_workers = sum(
@@ -109,8 +107,8 @@ class SustainabilityModel(Model):
         total_times_bycicle = 0
         total_times_electric_scooter = 0
         total_times_walk = 0
-        return 0    
-    
+        return 0
+
     def calculate_times_each_transport_was_used_per_agent(self):
         return 0
 
@@ -132,33 +130,10 @@ class SustainabilityModel(Model):
                 CO2_kms_e_scooter = agent.kms_electric_scooter * 67 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
         return CO2_kms_Car + CO2_kms_e_scooter
 
-    def get_shortest_path(self, graph: nx.Graph, source_id: int, target_id: int) -> list[int]:
-        return routing.shortest_path(graph, source_id, target_id, weight="length")
-
-    def get_total_distance(self, graph: nx.Graph, path: list[int]) -> float:
-        total_distance = 0.0
-
-        # Iterate over consecutive pairs in the path
-        for u, v in zip(path[:-1], path[1:]):
-            mn_edge = min(graph[u][v].values(), key=lambda edge: edge["length"])
-            total_distance += mn_edge["length"]
-        return total_distance
-
 
     def step(self):
         self.data_collector.collect(self)
         self.schedule.step()
-
-
-def load_graph(center_point, distance=5000) -> nx.Graph:
-    G = ox.graph_from_point(center_point=center_point, dist=distance)
-    G = osmnx.truncate.largest_component(G, strongly=True)
-    return G
-
-def get_closest_node(G, point):
-    # Get the node closest to the center point
-    closest_node = ox.distance.nearest_nodes(G, X=[point[1]], Y=[point[0]])
-    return closest_node[0]
 
 
 
@@ -167,11 +142,11 @@ if __name__ == "__main__":
     num_workers = 50
 
     center = 41.1664384, -8.6016
-    graph = load_graph(center, distance=5000)
-    ox.plot_graph(graph)
-    plt.show()
+    graphs = load_graphs(center, distance=5000)
+    # ox.plot_graph(drive)
+    # plt.show()
 
-    center_node = get_closest_node(graph, center)
+    # center_node = get_closest_node(graph, center)
     workers_type_distribution = (
         [0.2, WorkerType.ENVIROMENTALLY_CONSCIOUS],
         [0.5, WorkerType.COST_SENSITIVE],
@@ -182,8 +157,8 @@ if __name__ == "__main__":
         num_workers,
         workers_type_distribution,
         companies,
-        graph,
-        center_node,
+        graphs,
+        center_position=center,
         company_radius=1000,
         agent_home_radius=5000,
         seed=42
@@ -192,12 +167,12 @@ if __name__ == "__main__":
     for i in range(100):
         model.step()
 
-    random_nodes = random.sample(sorted(graph.nodes.keys()), 2)
-    print(f"Random nodes: {random_nodes}")
-    shortest_path = model.get_shortest_path(graph, random_nodes[0], random_nodes[1])
-    print(len(shortest_path))
-    total_distance = model.get_total_distance(graph, shortest_path)
-    print(total_distance)
+    # random_nodes = random.sample(sorted(graph.nodes.keys()), 2)
+    # print(f"Random nodes: {random_nodes}")
+    # shortest_path = model.get_shortest_path(graph, random_nodes[0], random_nodes[1])
+    # print(len(shortest_path))
+    # total_distance = model.get_total_distance(graph, shortest_path)
+    # print(total_distance)
 
     # Access the collected data for analysis
     results = model.data_collector.get_model_vars_dataframe()
