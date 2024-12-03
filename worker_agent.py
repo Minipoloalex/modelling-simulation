@@ -1,5 +1,6 @@
 from mesa import Agent
 from enum import Enum
+import random
 import math
 
 from graph_utils import get_total_distance, get_closest_node
@@ -42,6 +43,7 @@ class WorkerAgent(Agent):
         self.activities_during_day = []
         self.home_position = home_position
 
+
         self.home_nodes = {
             type: get_closest_node(graph, self.home_position)[0]
             for type, graph in self.model.graphs.items()
@@ -83,11 +85,21 @@ class WorkerAgent(Agent):
 
     def step(self):
         company_policy = self.company.policy
+        possible_transports = ["car", "bicycle", "electric scooters", "walking"]
+        transport_chosen = random.choice(possible_transports)
         # Get agents close to the agent (or from the same company)
         if company_policy == 0:
             # different thresholds for each worker type
             # too many cars (traffic): may choose bicycle?
             # TODO: add randomness
+            if transport_chosen == "car":
+                self.kms_car = (self.kms_car[0] + 1, self.kms_car[1] + self.distance_to_work)
+            elif transport_chosen == "bicycle":
+                self.kms_bycicle = (self.kms_bycicle[0] + 1, self.kms_bycicle[1] + self.distance_to_work)
+            elif transport_chosen == "walking":
+                self.kms_walk = (self.kms_walk[0] + 1, self.kms_walk[1] + self.distance_to_work)
+            elif transport_chosen == "electric scooters":
+                self.kms_electric_scooter = (self.kms_electric_scooter[0] + 1, self.kms_electric_scooter[1] + self.distance_to_work)
             many_cars = None
 
         # self.sustainable_choice: Depend on company policy and worker type (and other factors)
