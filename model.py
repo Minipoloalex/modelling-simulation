@@ -26,7 +26,7 @@ class SustainabilityModel(Model):
         companies: list,
         graphs: dict[str, nx.Graph],
         center_position: tuple[float, float],
-        company_radius: int = 1000,
+        company_location_radius: int = 1000,
         agent_home_radius: int = 5000,
         seed: Optional[int] = None,
     ):
@@ -64,15 +64,15 @@ class SustainabilityModel(Model):
             agent_reporters={"SustainableChoice": "sustainable_choice"},
         ) # Now we need to plot all these information at the end of the simulation for better visualization
 
-        self.company_agents = self.__init_companies(center_position, companies)
-        self.worker_agents = self.__init_agents(center_position, worker_types_distribution)
+        self.company_agents = self.__init_companies(center_position, companies, company_location_radius)
+        self.worker_agents = self.__init_agents(center_position, worker_types_distribution, agent_home_radius)
 
 
-    def __init_companies(self, center_position: tuple[float, float], companies):
-        for company_count, company_type in companies:
+    def __init_companies(self, center_position: tuple[float, float], companies, possible_radius):
+        for company_count, company_policy in companies:
             for _ in range(company_count):
-                position = random_position_within_radius(self.random, center_position, 1000)
-                company = CompanyAgent(self, company_type, position)
+                position = random_position_within_radius(self.random, center_position, possible_radius)
+                company = CompanyAgent(self, company_policy, position)
                 for type in self.grids.keys():
                     agent = Agent(self)
                     self.grids[type].place_agent(agent, company.location_nodes[type])   # Different agent to represent the company in each grid
@@ -80,13 +80,13 @@ class SustainabilityModel(Model):
                 self.schedule.add(company)
         return self.schedule.agents[: self.num_companies]
 
-    def __init_agents(self, center_position: tuple[float, float], worker_types_distribution):
+    def __init_agents(self, center_position: tuple[float, float], worker_types_distribution, possible_radius):
         probs, types = zip(*worker_types_distribution)
         transports = ["car", "bicycle", "electric scooters", "walking"] #electric scooters = trotinete elétrica
 
         for _ in range(self.num_workers):
             worker_type = self.random.choices(types, weights=probs, k=1)[0] # Get worker type according to distribution
-            position = random_position_within_radius(self.random, center_position, 5000)
+            position = random_position_within_radius(self.random, center_position, possible_radius)
             transport = self.random.choice(transports)      # Random preferred transport
             company = self.random.choice(self.company_agents)    # Random company works in
 
@@ -170,14 +170,14 @@ if __name__ == "__main__":
         [0.5, WorkerType.COST_SENSITIVE],
         [0.3, WorkerType.CONSERVATIVE],
     )
-    companies = [(3, "policy1"), (2, "policy2"), (1, "policy3")]
+    companies = [(3, "policy0"), (2, "policy0"), (1, "policy0")]
     model = SustainabilityModel(
         num_workers,
         workers_type_distribution,
         companies,
         graphs,
         center_position=center,
-        company_radius=1000,
+        company_location_radius=1000,
         agent_home_radius=5000,
         seed=42
     )
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     # SustainableChoices --> How many sustainable choices were made per day
     g = sns.lineplot(data=results["SustainableChoices"])
     g.set(title="Sustainable Choices over Time", ylabel="Sustainable Choices", xlabel="Iterations")
-    
+    plt.show()
     # CO2Emissions --> How CO2 emissions changed over time 
     # Time Spent in transports per agent --> Table to display this information where each row represents an agent
     # Number of times each transport was used overall --> the number of times each transport was used during the iterations

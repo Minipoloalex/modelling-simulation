@@ -33,6 +33,10 @@ class WorkerAgent(Agent):
         self.worker_type = worker_type
         self.preferred_transport = preferred_transport
         self.company = company
+        
+        # Should be modified on step()
+        self.at_home = True
+
         self.sustainable_choice = False
 
         # tuples so we can know the kms and how many times he used each transport
@@ -85,21 +89,35 @@ class WorkerAgent(Agent):
 
     def step(self):
         company_policy = self.company.policy
-        possible_transports = ["car", "bicycle", "electric scooters", "walking"]
+        possible_transports = ["walk", "bike", "electric_scooter", "car"]
         transport_chosen = random.choice(possible_transports)
+
+        # TODO:
         # Get agents close to the agent (or from the same company)
-        if company_policy == 0:
+        # They affect this agent's choices
+
+        distances = self.distances_to_work if self.at_home else self.distances_to_home
+        graph_type = self.transport_graph[transport_chosen]
+        transport_distance, additional_walk_distance = distances[graph_type]
+        
+        if company_policy == "policy0":
             # different thresholds for each worker type
             # too many cars (traffic): may choose bicycle?
             # TODO: add randomness
-            if transport_chosen == "car":
-                self.kms_car = (self.kms_car[0] + 1, self.kms_car[1] + self.distance_to_work)
-            elif transport_chosen == "bicycle":
-                self.kms_bycicle = (self.kms_bycicle[0] + 1, self.kms_bycicle[1] + self.distance_to_work)
-            elif transport_chosen == "walking":
-                self.kms_walk = (self.kms_walk[0] + 1, self.kms_walk[1] + self.distance_to_work)
-            elif transport_chosen == "electric scooters":
-                self.kms_electric_scooter = (self.kms_electric_scooter[0] + 1, self.kms_electric_scooter[1] + self.distance_to_work)
-            many_cars = None
+            if transport_chosen == "walk":
+                self.kms_walk = (self.kms_walk[0] + 1, self.kms_walk[1] + transport_distance)
+            elif transport_chosen == "bike":
+                self.kms_bycicle = (self.kms_bycicle[0] + 1, self.kms_bycicle[1] + transport_distance)
+            elif transport_chosen == "electric_scooter":
+                self.kms_electric_scooter = (self.kms_electric_scooter[0] + 1, self.kms_electric_scooter[1] + transport_distance)
+            elif transport_chosen == "car":
+                self.kms_car = (self.kms_car[0] + 1, self.kms_car[1] + transport_distance)
+            else:
+                raise ValueError(f"Invalid transport chosen '{transport_chosen}'")
 
+            self.kms_walk = (self.kms_walk[0], self.kms_walk[1] + additional_walk_distance)
+        else:
+            raise ValueError(f"Invalid company policy '{company_policy}'")
+
+        self.at_home = not self.at_home
         # self.sustainable_choice: Depend on company policy and worker type (and other factors)
