@@ -10,7 +10,7 @@ class WorkerType(Enum):
 
 
 class WorkerAgent(Agent):
-    def __init__(self, unique_id, model, worker_type, preferred_transport, company, home_node: int):
+    def __init__(self, unique_id, model, worker_type, preferred_transport, company, home_node: int, sustainable_gain_sum = 0, sustainable_score = 0):
         self.unique_id = unique_id  # Set unique ID
         self.model = model          # Set modelself.worker_type = worker_type
         self.worker_type = worker_type
@@ -21,6 +21,8 @@ class WorkerAgent(Agent):
         self.kms_bycicle = (0,0)
         self.kms_walk = (0,0)
         self.kms_electric_scooter = (0,0)
+        self.daily_sustainable_score = sustainable_score                      # daily value of good sustainable behavior
+        self.total_sustainable_gain_sum = sustainable_gain_sum                # sum of all the rewards given by the company
         self.home_node = home_node
         self.pos = None  # Initialize position attribute
 

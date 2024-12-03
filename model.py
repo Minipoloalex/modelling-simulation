@@ -14,6 +14,8 @@ import random
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+COST_CO2_kg = 3.2 # Cust of 1kg of CO2 emited
+
 class SustainabilityModel(Model):
     def __init__(
         self,
@@ -34,7 +36,7 @@ class SustainabilityModel(Model):
             
             For example:
             worker_types_distribution = [0.2, environmentally_conscious], [0.5, cost_sensitive], [0.3, conservative]
-            companies = [(3, policy1), (2, policy2), (1, policy3)]
+            companies = [(3, policy1), (2, policy2), (1, policy1)]
             
         """
         super().__init__()
@@ -193,7 +195,7 @@ if __name__ == "__main__":
         [0.5, WorkerType.COST_SENSITIVE],
         [0.3, WorkerType.CONSERVATIVE],
     )
-    companies = [(3, "policy1"), (2, "policy2"), (1, "policy3")]
+    companies = [(3, "policy1"), (2, "policy2"), (1, "policy1")]
     model = SustainabilityModel(
         num_workers,
         workers_type_distribution,

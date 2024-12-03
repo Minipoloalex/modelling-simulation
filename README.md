@@ -1,4 +1,4 @@
-# Introduction 
+# Introduction
 
 ## Problem Formulation
 
@@ -23,11 +23,12 @@ behaviour of our complex system and assess how changes in a set of independent v
 (like transport usage or CO2 emissions).
 
 ## Problem description
+
 Some companies are aiming to encourage their employees to adopt more sustainable
 commuting habits by introducing a benefits or credit scheme designed to incentivise eco-
 friendly travel choices
 
-## Developers:
+## Developers
 
 - Félix Martins
 - João Lima
