@@ -91,6 +91,7 @@ class SustainabilityModel(Model):
             company = self.random.choice(self.company_agents)    # Random company works in
 
             worker = WorkerAgent(self, worker_type, transport, company, position)   # Should be place in grids later
+            company.add_worker(worker)
             self.schedule.add(worker)
 
         return self.agents[self.num_companies :]
