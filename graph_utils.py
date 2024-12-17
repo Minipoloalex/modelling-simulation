@@ -6,7 +6,7 @@ import osmnx.truncate
 import math
 import random
 
-ox.settings.log_console = True
+# ox.settings.log_console = True
 
 def load_graphs(center_point, distance=5000) -> dict[str, nx.Graph]:
     drive_graph = ox.graph_from_point(
