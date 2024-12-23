@@ -11,10 +11,13 @@ class CompanyAgent(Agent):
             type: get_closest_node(graph, location_position)[0]
             for type, graph in self.model.graphs.items()
         }
-        print(f"Company location nodes: {self.location_nodes}")
+        # print(f"Company location nodes: {self.location_nodes}")
         self.total_cots_of_CO2_Kg = 0 # sum of all cost of pollution (CO2 Kg)
         self.company_budget = BASE_COMPANY_BUDGET
-    
+
+        self.visualization_node = self.location_nodes[self.model.visualization_graph_type]
+        self.model.grid.place_agent(self, self.visualization_node)
+
     def add_worker(self, worker):
         self.workers.append(worker)
         # Add a worker to this company

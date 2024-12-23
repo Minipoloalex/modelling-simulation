@@ -4,14 +4,11 @@ from mesa.space import NetworkGrid
 from mesa.datacollection import DataCollector
 import networkx as nx
 import osmnx as ox
-import osmnx.distance as distance
-import osmnx.routing as routing
-import osmnx.truncate
 import matplotlib.pyplot as plt
 from worker_agent import WorkerAgent, WorkerType
 from company_agent import CompanyAgent
 
-from graph_utils import load_graphs, random_position_within_radius
+from graph_utils import load_graphs, random_position_within_radius, merge_graphs
 from typing import Optional
 
 
@@ -51,8 +48,15 @@ class SustainabilityModel(Model):
             type: NetworkGrid(graph)
             for type, graph in self.graphs.items()
         }
-        self.schedule = RandomActivation(self)
+        self.grid = NetworkGrid(
+            merge_graphs(
+                grid_names=sorted(self.grids.keys()),
+                grids=self.grids
+            )
+        )
+        self.visualization_graph_type = sorted(self.grids.keys())[0]    # Use only one of the grids for visualization
 
+        self.schedule = RandomActivation(self)
         self.data_collector = DataCollector(
             model_reporters={
                 "SustainableChoices": self.calculate_sustainable_choices,
@@ -64,8 +68,8 @@ class SustainabilityModel(Model):
             agent_reporters={"SustainableChoice": "sustainable_choice"},
         ) # Now we need to plot all these information at the end of the simulation for better visualization
 
-        self.company_agents = self.__init_companies(center_position, companies, company_location_radius)
-        self.worker_agents = self.__init_agents(center_position, worker_types_distribution, agent_home_radius)
+        self.company_agents: list[CompanyAgent] = self.__init_companies(center_position, companies, company_location_radius)
+        self.worker_agents: list[WorkerAgent] = self.__init_agents(center_position, worker_types_distribution, agent_home_radius)
 
 
     def __init_companies(self, center_position: tuple[float, float], companies, possible_radius):
@@ -73,10 +77,6 @@ class SustainabilityModel(Model):
             for _ in range(company_count):
                 position = random_position_within_radius(self.random, center_position, possible_radius)
                 company = CompanyAgent(self, company_policy, position)
-                for type in self.grids.keys():
-                    agent = Agent(self)
-                    self.grids[type].place_agent(agent, company.location_nodes[type])   # Different agent to represent the company in each grid
-                    # self.grids[type].place_agent(company, company.location_nodes[type])
                 self.schedule.add(company)
         return self.schedule.agents[: self.num_companies]
 
@@ -96,6 +96,10 @@ class SustainabilityModel(Model):
 
         return self.agents[self.num_companies :]
 
+    def get_worker_positions(self):
+        return {
+            agent.unique_id: agent.pos for agent in self.worker_agents
+        }
 
     def calculate_sustainable_choices(self):
         sustainable_workers = sum(
@@ -166,7 +170,7 @@ if __name__ == "__main__":
     # plt.show()
 
     # center_node = get_closest_node(graph, center)
-    workers_type_distribution = (
+    worker_types_distribution = (
         [0.2, WorkerType.ENVIROMENTALLY_CONSCIOUS],
         [0.5, WorkerType.COST_SENSITIVE],
         [0.3, WorkerType.CONSERVATIVE],
@@ -174,7 +178,7 @@ if __name__ == "__main__":
     companies = [(3, "policy0"), (2, "policy0"), (1, "policy0")]
     model = SustainabilityModel(
         num_workers,
-        workers_type_distribution,
+        worker_types_distribution,
         companies,
         graphs,
         center_position=center,
