@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from worker_agent import WorkerAgent, WorkerType
 from company_agent import CompanyAgent
 
-from graph_utils import load_graphs, random_position_within_radius
+from graph_utils import load_graphs, random_position_within_radius, merge_graphs
 from typing import Optional
 
 
@@ -48,8 +48,15 @@ class SustainabilityModel(Model):
             type: NetworkGrid(graph)
             for type, graph in self.graphs.items()
         }
-        self.schedule = RandomActivation(self)
+        self.grid = NetworkGrid(
+            merge_graphs(
+                grid_names=sorted(self.grids.keys()),
+                grids=self.grids
+            )
+        )
+        self.visualization_graph_type = sorted(self.grids.keys())[0]    # Use only one of the grids for visualization
 
+        self.schedule = RandomActivation(self)
         self.data_collector = DataCollector(
             model_reporters={
                 "SustainableChoices": self.calculate_sustainable_choices,
@@ -70,10 +77,6 @@ class SustainabilityModel(Model):
             for _ in range(company_count):
                 position = random_position_within_radius(self.random, center_position, possible_radius)
                 company = CompanyAgent(self, company_policy, position)
-                for type in self.grids.keys():
-                    agent = Agent(self)
-                    self.grids[type].place_agent(agent, company.location_nodes[type])   # Different agent to represent the company in each grid
-                    # self.grids[type].place_agent(company, company.location_nodes[type])
                 self.schedule.add(company)
         return self.schedule.agents[: self.num_companies]
 

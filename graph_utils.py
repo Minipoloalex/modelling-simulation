@@ -4,6 +4,8 @@ import osmnx.distance as distance
 import osmnx.routing as routing
 import osmnx.truncate
 import math
+import numpy as np
+from mesa.space import NetworkGrid
 import random
 
 # ox.settings.log_console = True
@@ -95,3 +97,48 @@ def random_position_within_radius(rng, center_position, radius):
     new_lon = center_position[1] + delta_lon
     
     return new_lat, new_lon
+
+
+
+def mix_colors(color1, color2):
+    """
+    Mix two hex colors by adding their RGB components.
+    """
+    rgb1 = np.array([int(color1[i:i+2], 16) for i in (1, 3, 5)])
+    rgb2 = np.array([int(color2[i:i+2], 16) for i in (1, 3, 5)])
+    mixed_rgb = np.minimum(255, (rgb1 + rgb2).astype(int))
+    return f"#{mixed_rgb[0]:02x}{mixed_rgb[1]:02x}{mixed_rgb[2]:02x}"
+
+
+def merge_graphs(grid_names: list[str], grids: dict[str, NetworkGrid]) -> nx.MultiDiGraph:
+    # Define colors for each graph
+    graph_colors = ["#FF0000", "#00FF00", "#0000FF"]  # RGB
+
+    # Initialize a merged graph
+    merged_graph = nx.MultiDiGraph()
+
+    # Step 1: Add nodes and edges to the merged graph with attributes
+    for i, grid_name in enumerate(grid_names):
+        color = graph_colors[i]
+        graph = grids[grid_name].G
+
+        # Add nodes with color attribute
+        for node, data in graph.nodes(data=True):
+            if merged_graph.has_node(node):
+                # If the node exists, combine the color
+                existing_color = merged_graph.nodes[node].get("color", "#FFFFFF")  # Default to white
+                merged_graph.nodes[node]["color"] = mix_colors(existing_color, color)
+            else:
+                merged_graph.add_node(node, **data, color=color)
+
+        # Add edges with color attribute
+        for u, v, data in graph.edges(data=True):
+            # Check if edge exists already, merge the color
+            if merged_graph.has_edge(u, v):
+                # Combine the color for existing edges
+                for edge_key in merged_graph[u][v]:
+                    existing_color = merged_graph[u][v][edge_key].get("color", "#FFFFFF")
+                    merged_graph[u][v][edge_key]["color"] = mix_colors(existing_color, color)
+            else:
+                merged_graph.add_edge(u, v, color=color, **data)
+    return merged_graph

@@ -12,6 +12,9 @@ class CompanyAgent(Agent):
         }
         print(f"Company location nodes: {self.location_nodes}")
 
+        self.visualization_node = self.location_nodes[self.model.visualization_graph_type]
+        self.model.grid.place_agent(self, self.visualization_node)
+
     def step(self):
         # Update policy or provide incentives if needed
         pass  # More detailed behaviors could be added
