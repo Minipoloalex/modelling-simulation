@@ -60,7 +60,7 @@ class SustainabilityModel(Model):
         self.data_collector = DataCollector(
             model_reporters={
                 "SustainableChoices": self.calculate_sustainable_choices,
-                "CO2Emissions": self.calculate_CO2_emissions, # think on how we can change these in order to have a good calculation
+                "CO2Emissions": self.calculate_CO2_emissions, 
                 "Time Spent in transports per agent": self.calculate_time_spent_in_transports,
                 "Number of times each transport was used overall": self.calculate_times_each_transport_was_used,
                 "How many times each transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
@@ -147,10 +147,12 @@ class SustainabilityModel(Model):
         return final_dict
     
     def calculate_CO2_emissions(self):
+        CO2_kms_Car = 0
+        CO2_kms_e_scooter = 0
         for agent in self.schedule.agents:
             if isinstance(agent, WorkerAgent):
-                CO2_kms_Car = agent.kms_car * 250 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
-                CO2_kms_e_scooter = agent.kms_electric_scooter * 67 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+                CO2_kms_Car = agent.kms_car[1] * 250 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+                CO2_kms_e_scooter = agent.kms_electric_scooter[1] * 67 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
         return CO2_kms_Car + CO2_kms_e_scooter
 
 
