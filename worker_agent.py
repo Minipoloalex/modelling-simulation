@@ -71,11 +71,11 @@ class WorkerAgent(Agent):
         self.time_to_work = self.__get_time_from_distances(self.distances_to_work)
         self.time_to_home = self.__get_time_from_distances(self.distances_to_home)
 
-        print("Distances to work, home. Time to work, home")
-        print(self.distances_to_work)
-        print(self.distances_to_home)
-        print(self.time_to_work)
-        print(self.time_to_home)
+        # print("Distances to work, home. Time to work, home")
+        # print(self.distances_to_work)
+        # print(self.distances_to_home)
+        # print(self.time_to_work)
+        # print(self.time_to_home)
 
     def __get_time_from_distances(self, distances: dict[str, tuple[float]]):
         result = {}

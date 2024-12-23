@@ -95,6 +95,10 @@ class SustainabilityModel(Model):
 
         return self.agents[self.num_companies :]
 
+    def get_worker_positions(self):
+        return {
+            agent.unique_id: agent.pos for agent in self.worker_agents
+        }
 
     def calculate_sustainable_choices(self):
         sustainable_workers = sum(

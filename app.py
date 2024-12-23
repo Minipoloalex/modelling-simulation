@@ -11,6 +11,11 @@ from model import SustainabilityModel, WorkerType
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+import networkx as nx
+import matplotlib.pyplot as plt
+import solara
+import numpy as np
+
 total_radius = 1000
 company_location_radius = total_radius // 5
 center = 41.1664384, -8.6016
@@ -22,11 +27,6 @@ worker_types_distribution = (
 )
 companies = [(3, "policy0"), (2, "policy0"), (1, "policy0")]
 num_workers = 5
-
-import networkx as nx
-import matplotlib.pyplot as plt
-import solara
-import numpy as np
 
 @solara.component
 def ShowGraph(num_workers):
@@ -42,76 +42,103 @@ def ShowGraph(num_workers):
         seed=42
     )
 
-    # Define colors for each graph
-    graph_colors = ["#FF0000", "#00FF00", "#0000FF"]  # RGB
-    grid_names = sorted(model.grids.keys())  # Sort grid names
+    # # Reactive state for agent positions
+    # worker_agent_positions_state, set_worker_agent_positions_state = solara.use_state(model.get_worker_positions())
 
-    # Initialize a merged graph
-    merged_graph = nx.MultiDiGraph()
+    # Step function to update the model and agent positions
+    def update():
+        model.step()
 
-    # Step 1: Add nodes and edges to the merged graph with attributes
-    for i, grid_name in enumerate(grid_names):
-        color = graph_colors[i]
-        graph = model.grids[grid_name].G
+    #     # Update agent positions in reactive state
+    #     set_worker_agent_positions_state(model.get_worker_positions())
 
-        # Add nodes with color attribute
-        for node, data in graph.nodes(data=True):
-            if merged_graph.has_node(node):
-                # If the node exists, combine the color
-                existing_color = merged_graph.nodes[node].get("color", "#FFFFFF")  # Default to white
-                merged_graph.nodes[node]["color"] = mix_colors(existing_color, color)
-            else:
-                merged_graph.add_node(node, **data, color=color)
-
-        # Add edges with color attribute
-        for u, v, data in graph.edges(data=True):
-            # Check if edge exists already, merge the color
-            if merged_graph.has_edge(u, v):
-                # Combine the color for existing edges
-                for edge_key in merged_graph[u][v]:
-                    existing_color = merged_graph[u][v][edge_key].get("color", "#FFFFFF")
-                    merged_graph[u][v][edge_key]["color"] = mix_colors(existing_color, color)
-            else:
-                merged_graph.add_edge(u, v, color=color, **data)
-
+    merged_graph = model.grid.G
 
     # Step 2: Define positions for the nodes
     DISTANCE_FACTOR = 10
     pos = {
         node: (data["x"] * DISTANCE_FACTOR, data["y"] * DISTANCE_FACTOR)
         for node, data in merged_graph.nodes(data=True)
-        if "x" in data and "y" in data
     }
 
-    # Step 3: Draw the merged graph
-    fig, ax = plt.subplots(figsize=(10, 10))
+    company_nodes = [company.pos for company in model.company_agents]
+    company_color = "black"
+    for company_node in company_nodes:
+        pos[company_node] = (
+            merged_graph.nodes[company_node]["x"] * DISTANCE_FACTOR,
+            merged_graph.nodes[company_node]["y"] * DISTANCE_FACTOR,
+        )
 
-    # Draw nodes with colors
-    node_colors = [data.get("color", "#FFFFFF") for _, data in merged_graph.nodes(data=True)]
+    node_colors = [
+        company_color if node in company_nodes else data.get("color", "#FFFFFF")
+        for node, data in merged_graph.nodes(data=True)
+    ]
     edge_colors = [data.get("color", "gray") for _, _, data in merged_graph.edges(data=True)]
+    node_sizes = [
+        20 if node in company_nodes else 1
+        for node in merged_graph.nodes
+    ]
+
+    fig, ax = plt.subplots(figsize=(10, 10))
     nx.draw(
         merged_graph,
         pos=pos,
         ax=ax,
-        node_size=1,
+        node_size=node_sizes,
         node_color=node_colors,
         edge_color=edge_colors,
         with_labels=False,
         arrows=False
     )
 
+    # Draw agent nodes on top with larger size and specific colors
+    # agent_colors = {
+    #     agent_id: "#FFA500"  # Default orange color for agents
+    #     for agent_id in agent_positions_state.keys()
+    # }
+    # nx.draw_networkx_nodes(
+    #     merged_graph,
+    #     pos=pos,
+    #     ax=ax,
+    #     nodelist=list(agent_positions_state.keys()),
+    #     node_color=list(agent_colors.values()),
+    #     node_size=100,  # Bigger size for agents
+    # )
+    # Step 3: Get company positions
+    # company_positions = {
+    #     company.pos: (merged_graph[company.pos]['x'], merged_graph[company.pos]['x'])
+    #     for company in model.company_agents
+    # }
+    company_positions = {
+        company.pos: (
+            merged_graph.nodes[company.pos]["x"],
+            merged_graph.nodes[company.pos]["y"]
+        )
+        for company in model.company_agents
+    }
+    print(company_positions)
+    
+    # Add company positions to pos
+    # for company_id, company_pos in company_positions.items():
+    #     pos[company_id] = (
+    #         company_pos[0] * DISTANCE_FACTOR,
+    #         company_pos[1] * DISTANCE_FACTOR,
+    #     )
+    # Draw company nodes on top with larger size and distinct colors
+    # nx.draw_networkx_nodes(
+    #     merged_graph,
+    #     pos=company_positions,
+    #     ax=ax,
+    #     nodelist=list(company_positions.keys()),
+    #     node_color="#FFD700",  # Gold color for companies
+    #     node_size=20,  # Larger size for companies
+    # )
+
     # Display the figure in Solara
     solara.FigureMatplotlib(fig)
 
-
-def mix_colors(color1, color2):
-    """
-    Mix two hex colors by adding their RGB components.
-    """
-    rgb1 = np.array([int(color1[i:i+2], 16) for i in (1, 3, 5)])
-    rgb2 = np.array([int(color2[i:i+2], 16) for i in (1, 3, 5)])
-    mixed_rgb = np.minimum(255, (rgb1 + rgb2).astype(int))
-    return f"#{mixed_rgb[0]:02x}{mixed_rgb[1]:02x}{mixed_rgb[2]:02x}"
+    # Add a button to step through the simulation
+    solara.Button("Next Step", on_click=update)
 
 
 # Run the Solara app
