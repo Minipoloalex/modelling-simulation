@@ -2,7 +2,7 @@ from mesa import Agent
 from enum import Enum
 import random
 import math
-
+from mesa.space import NetworkGrid
 from graph_utils import get_total_distance, get_closest_node
 
 
@@ -52,6 +52,10 @@ class WorkerAgent(Agent):
             type: get_closest_node(graph, self.home_position)[0]
             for type, graph in self.model.graphs.items()
         }
+        self.visualization_home_node = self.home_nodes[self.model.visualization_graph_type]
+        self.visualization_company_node = self.company.visualization_node
+        self.model.grid.place_agent(self, self.visualization_home_node)
+
         self.distances_to_work = {
             type: get_total_distance(
                 graph, self.home_position, company.location_position
@@ -67,11 +71,11 @@ class WorkerAgent(Agent):
         self.time_to_work = self.__get_time_from_distances(self.distances_to_work)
         self.time_to_home = self.__get_time_from_distances(self.distances_to_home)
 
-        print("Distances to work, home. Time to work, home")
-        print(self.distances_to_work)
-        print(self.distances_to_home)
-        print(self.time_to_work)
-        print(self.time_to_home)
+        # print("Distances to work, home. Time to work, home")
+        # print(self.distances_to_work)
+        # print(self.distances_to_home)
+        # print(self.time_to_work)
+        # print(self.time_to_home)
 
     def __get_time_from_distances(self, distances: dict[str, tuple[float]]):
         result = {}
@@ -99,7 +103,7 @@ class WorkerAgent(Agent):
         distances = self.distances_to_work if self.at_home else self.distances_to_home
         graph_type = self.transport_graph[transport_chosen]
         transport_distance, additional_walk_distance = distances[graph_type]
-        
+
         if company_policy == "policy0":
             # different thresholds for each worker type
             # too many cars (traffic): may choose bicycle?
@@ -120,4 +124,10 @@ class WorkerAgent(Agent):
             raise ValueError(f"Invalid company policy '{company_policy}'")
 
         self.at_home = not self.at_home
+
+        if self.at_home:
+            self.model.grid.move_agent(self, self.visualization_home_node)
+        else:
+            self.model.grid.move_agent(self, self.visualization_company_node)
+
         # self.sustainable_choice: Depend on company policy and worker type (and other factors)

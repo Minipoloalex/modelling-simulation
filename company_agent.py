@@ -10,7 +10,10 @@ class CompanyAgent(Agent):
             type: get_closest_node(graph, location_position)[0]
             for type, graph in self.model.graphs.items()
         }
-        print(f"Company location nodes: {self.location_nodes}")
+        # print(f"Company location nodes: {self.location_nodes}")
+
+        self.visualization_node = self.location_nodes[self.model.visualization_graph_type]
+        self.model.grid.place_agent(self, self.visualization_node)
 
     def step(self):
         # Update policy or provide incentives if needed
