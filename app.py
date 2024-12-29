@@ -26,36 +26,51 @@ worker_types_distribution = (
     [0.3, WorkerType.CONSERVATIVE],
 )
 companies = [(3, "policy0"), (2, "policy0"), (1, "policy0")]
-num_workers = 5
+num_workers = 50
 
-@solara.component
-def ShowGraph(num_workers):
-    # Initialize the model
-    model = SustainabilityModel(
-        num_workers=num_workers,
-        worker_types_distribution=worker_types_distribution,
-        companies=companies,
-        graphs=graphs,
-        center_position=center,
-        company_location_radius=company_location_radius,
-        agent_home_radius=total_radius,
-        seed=42
-    )
+model_params = {
+    "num_workers": {
+        "type": "SliderInt",
+        "value": 50,
+        "label": "Number of workers",
+        "min": 5,
+        "max": 60,
+        "step": 1,
+    },
+    "worker_types_distribution": worker_types_distribution,
+    "companies": companies,
+    "graphs": graphs,
+    "center_position": center,
+    "company_location_radius": company_location_radius,
+    "agent_home_radius": total_radius,
+    "seed": 42,
+}
 
-    # # Reactive state for agent positions
-    # worker_agent_positions_state, set_worker_agent_positions_state = solara.use_state(model.get_worker_positions())
+model = SustainabilityModel(
+    num_workers=num_workers,
+    worker_types_distribution=worker_types_distribution,
+    companies=companies,
+    graphs=graphs,
+    center_position=center,
+    company_location_radius=company_location_radius,
+    agent_home_radius=total_radius,
+    seed=42,
+)
 
-    # Step function to update the model and agent positions
-    def update():
-        model.step()
+DISTANCE_FACTOR = 10
 
-    #     # Update agent positions in reactive state
-    #     set_worker_agent_positions_state(model.get_worker_positions())
+class Debugger:
+    i = 1
+    @staticmethod
+    def debug_graph_rendering(model):
+        print(f"{Debugger.i}: Rendering graph")
+        Debugger.i += 1
 
+def make_graph(model):
+    Debugger.debug_graph_rendering(model)
+    worker_agent_positions_state = model.get_worker_positions()
     merged_graph = model.grid.G
 
-    # Step 2: Define positions for the nodes
-    DISTANCE_FACTOR = 10
     pos = {
         node: (data["x"] * DISTANCE_FACTOR, data["y"] * DISTANCE_FACTOR)
         for node, data in merged_graph.nodes(data=True)
@@ -80,6 +95,10 @@ def ShowGraph(num_workers):
     ]
 
     fig, ax = plt.subplots(figsize=(10, 10))
+    worker_nodes = {}
+    for worker_node in worker_agent_positions_state.values():
+        worker_nodes[worker_node] = worker_nodes.get(worker_node, 0) + 1
+
     nx.draw(
         merged_graph,
         pos=pos,
@@ -88,65 +107,45 @@ def ShowGraph(num_workers):
         node_color=node_colors,
         edge_color=edge_colors,
         with_labels=False,
-        arrows=False
+        arrows=False,
+    )
+    min_size = 100
+    max_size = 300
+    max_count = len(worker_agent_positions_state)
+    sizes = [min_size + (max_size - min_size) * (count / max_count) for count in worker_nodes.values()]
+
+    ax.scatter(
+        [merged_graph.nodes[worker_node]["x"] * DISTANCE_FACTOR for worker_node in worker_nodes.keys()],
+        [merged_graph.nodes[worker_node]["y"] * DISTANCE_FACTOR for worker_node in worker_nodes.keys()],
+        s=sizes,
+        c=None,
+        cmap=None,
+        facecolors="none",  # not filled
+        edgecolors="black",
     )
 
-    # Draw agent nodes on top with larger size and specific colors
-    # agent_colors = {
-    #     agent_id: "#FFA500"  # Default orange color for agents
-    #     for agent_id in agent_positions_state.keys()
-    # }
-    # nx.draw_networkx_nodes(
-    #     merged_graph,
-    #     pos=pos,
-    #     ax=ax,
-    #     nodelist=list(agent_positions_state.keys()),
-    #     node_color=list(agent_colors.values()),
-    #     node_size=100,  # Bigger size for agents
-    # )
-    # Step 3: Get company positions
-    # company_positions = {
-    #     company.pos: (merged_graph[company.pos]['x'], merged_graph[company.pos]['x'])
-    #     for company in model.company_agents
-    # }
-    company_positions = {
-        company.pos: (
-            merged_graph.nodes[company.pos]["x"],
-            merged_graph.nodes[company.pos]["y"]
-        )
-        for company in model.company_agents
-    }
-    print(company_positions)
-    
-    # Add company positions to pos
-    # for company_id, company_pos in company_positions.items():
-    #     pos[company_id] = (
-    #         company_pos[0] * DISTANCE_FACTOR,
-    #         company_pos[1] * DISTANCE_FACTOR,
-    #     )
-    # Draw company nodes on top with larger size and distinct colors
-    # nx.draw_networkx_nodes(
-    #     merged_graph,
-    #     pos=company_positions,
-    #     ax=ax,
-    #     nodelist=list(company_positions.keys()),
-    #     node_color="#FFD700",  # Gold color for companies
-    #     node_size=20,  # Larger size for companies
-    # )
+    ax.scatter(
+        [merged_graph.nodes[company_node]["x"] * DISTANCE_FACTOR for company_node in company_nodes],
+        [merged_graph.nodes[company_node]["y"] * DISTANCE_FACTOR for company_node in company_nodes],
+        s=30,
+        c="black",
+    )
+    solara_figure = solara.FigureMatplotlib(fig)
 
-    # Display the figure in Solara
-    solara.FigureMatplotlib(fig)
+    # Close the matplotlib figure explicitly (otherwise unused figures would still be open)
+    plt.close(fig)
 
-    # Add a button to step through the simulation
-    solara.Button("Next Step", on_click=update)
+    return solara_figure
 
 
-# Run the Solara app
 @solara.component
 def Page():
-    num_workers, set_num_workers = solara.use_state(10)
-    solara.Title("Sustainability Model Graph")
-    with solara.Row():
-        solara.Text("Number of Workers:")
-        solara.SliderInt(label="Workers", value=num_workers, min=1, max=100, on_value=set_num_workers)
-    ShowGraph(num_workers=num_workers)
+    solara.Title("Sustainability Model")    
+    SolaraViz(
+        model,
+        components=[
+            make_graph,
+        ],
+        model_params=model_params,
+        name="Sustainability Model",
+    )

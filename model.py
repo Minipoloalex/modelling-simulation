@@ -18,15 +18,16 @@ import seaborn as sns
 class SustainabilityModel(Model):
     def __init__(
         self,
-        num_workers: int,
-        worker_types_distribution: list,
-        companies: list,
-        graphs: dict[str, nx.Graph],
-        center_position: tuple[float, float],
+        num_workers: int = 10,
+        worker_types_distribution: list = None,
+        companies: list = None,
+        graphs: dict[str, nx.Graph] = None,
+        center_position: tuple[float, float] = None,
         company_location_radius: int = 1000,
         agent_home_radius: int = 5000,
         seed: Optional[int] = None,
     ):
+        print("Init model", num_workers)
         """
         Initialize the sustainability model with workers and companies.
 
