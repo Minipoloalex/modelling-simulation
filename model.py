@@ -198,8 +198,8 @@ if __name__ == "__main__":
     # Access the collected data for analysis
     results = model.data_collector.get_model_vars_dataframe()
     #print(results)
-    print(results) #need to understand what the columns refer to
-    results.to_csv("results.csv")
+    #print(results) #need to understand what the columns refer to
+    #results.to_csv("results.csv")
     # Start plotting statistics
     # SustainableChoices --> How many sustainable choices were made per day
     # g = sns.lineplot(data=results["SustainableChoices"])
