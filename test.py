@@ -31,6 +31,12 @@ def choose_transport(distances):
             "walking": walking_probability(transport_distance_bike + additional_walk_distance_bike)
         }
 
+        # Sustainability bias
+        sustainability_factor = 0.5  
+        dynamic_weights["bicycle"] *= 1 + sustainability_factor
+        dynamic_weights["walking"] *= 1 + sustainability_factor
+        dynamic_weights["electric scooters"] *= 1 + sustainability_factor
+
         # Normalize weights to form a proper probability distribution
         total_weight = sum(dynamic_weights.values())
         if total_weight > 0:
