@@ -45,26 +45,25 @@ class SustainabilityModel(Model):
         self.num_agents = self.num_workers + self.num_companies
 
         self.graphs = graphs
-        self.grids = {
-            type: NetworkGrid(graph)
-            for type, graph in self.graphs.items()
-        }
         self.grid = NetworkGrid(
             merge_graphs(
-                grid_names=sorted(self.grids.keys()),
-                grids=self.grids
+                graph_names=sorted(self.graphs.keys()),
+                graphs=self.graphs
             )
         )
-        self.visualization_graph_type = sorted(self.grids.keys())[0]    # Use only one of the grids for visualization
+
+        # Use one of the graphs for company location visualization
+        self.visualization_graph_type = sorted(self.graphs.keys())[0]
 
         self.schedule = RandomActivation(self)
         self.data_collector = DataCollector(
             model_reporters={
-                "SustainableChoices": self.calculate_sustainable_choices,
+                # "SustainableChoices": self.calculate_sustainable_choices,
                 "CO2Emissions": self.calculate_CO2_emissions, 
                 "Time Spent in transports per agent": self.calculate_time_spent_in_transports,
                 "Number of times each transport was used overall": self.calculate_times_each_transport_was_used,
-                "How many times each transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
+                # Travelled distance ?
+                # "How many times each transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
             },
             agent_reporters={"SustainableChoice": "sustainable_choice"},
         ) # Now we need to plot all these information at the end of the simulation for better visualization
@@ -91,7 +90,8 @@ class SustainabilityModel(Model):
             transport = self.random.choice(transports)      # Random preferred transport
             company = self.random.choice(self.company_agents)    # Random company works in
 
-            worker = WorkerAgent(self, worker_type, transport, company, position)   # Should be place in grids later
+            # Places itself on the grid at correct node
+            worker = WorkerAgent(self, worker_type, transport, company, position)
             company.add_worker(worker)
             self.schedule.add(worker)
 
@@ -156,6 +156,10 @@ class SustainabilityModel(Model):
         self.data_collector.collect(self)
         self.schedule.step()
 
+        partial_finish = all(agent.partial_finish for agent in self.worker_agents)
+        if partial_finish:
+            for agent in self.worker_agents:
+                agent.switch_path()
 
 
 # Running/Testing the model
@@ -202,14 +206,14 @@ if __name__ == "__main__":
     #results.to_csv("results.csv")
     # Start plotting statistics
     # SustainableChoices --> How many sustainable choices were made per day
-    # g = sns.lineplot(data=results["SustainableChoices"])
-    # g.set(title="Sustainable Choices over Time", ylabel="Sustainable Choices", xlabel="Iterations")
-    # plt.show()
+    g = sns.lineplot(data=results["SustainableChoices"])
+    g.set(title="Sustainable Choices over Time", ylabel="Sustainable Choices", xlabel="Iterations")
+    plt.show()
     
     # CO2Emissions --> How CO2 emissions changed over time 
-    # f = sns.lineplot(data=results["CO2Emissions"])
-    # f.set(title="CO2Emissions over Time", ylabel="CO2Emissions", xlabel="Iterations")
-    # plt.show()
+    f = sns.lineplot(data=results["CO2Emissions"])
+    f.set(title="CO2Emissions over Time", ylabel="CO2Emissions", xlabel="Iterations")
+    plt.show()
     
     # Time Spent in transports per agent --> Table to display this information where each row represents an agent
     # Number of times each transport was used overall --> the number of times each transport was used during the iterations
