@@ -135,16 +135,18 @@ class SustainabilityModel(Model):
                 time_kms_bycicle = agent.kms_bycicle[1] / 15 # kms / 15km/h = time in hours
                 final_dict[agent.unique_id] = {"Time spent driving car": time_kms_Car, "Time spent using an electrical scooter": time_kms_e_scooter, "Time spent walking:": time_kms_walk, "Time spent bycicling":  time_kms_bycicle}
         return final_dict
-    
-    def calculate_CO2_emissions(self):
-        CO2_kms_Car = 0
-        CO2_kms_e_scooter = 0
-        for agent in self.schedule.agents:
-            if isinstance(agent, WorkerAgent):
-                CO2_kms_Car += agent.kms_car[1] * 250 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
-                CO2_kms_e_scooter += agent.kms_electric_scooter[1] * 67 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
-        return CO2_kms_Car + CO2_kms_e_scooter
 
+    def calculate_CO2_emissions(self):
+        CO2_kms_car = 0
+        CO2_kms_e_scooter = 0
+        for agent in self.worker_agents:
+            CO2_kms_car += agent.kms_car[1] * 250 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+            CO2_kms_e_scooter += agent.kms_electric_scooter[1] * 67 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+
+        return {
+            "car": CO2_kms_car,
+            "eletric_scooter": CO2_kms_e_scooter,
+        }
 
     def step(self):
         self.schedule.step()
@@ -199,16 +201,7 @@ if __name__ == "__main__":
     #print(results) #need to understand what the columns refer to
     #results.to_csv("results.csv")
     # Start plotting statistics
-    # SustainableChoices --> How many sustainable choices were made per day
-    g = sns.lineplot(data=results["SustainableChoices"])
-    g.set(title="Sustainable Choices over Time", ylabel="Sustainable Choices", xlabel="Iterations")
-    plt.show()
-    
-    # CO2Emissions --> How CO2 emissions changed over time 
-    f = sns.lineplot(data=results["CO2Emissions"])
-    f.set(title="CO2Emissions over Time", ylabel="CO2Emissions", xlabel="Iterations")
-    plt.show()
-    
+    # Outdated plots were removed (plots can be found on app.py, probably should be moved to Model)
     # Time Spent in transports per agent --> Table to display this information where each row represents an agent
     # Number of times each transport was used overall --> the number of times each transport was used during the iterations
     # Which transport was used per agent --> Table to display this information where each row represents an agent

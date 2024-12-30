@@ -167,15 +167,24 @@ def make_transport_usage_plot(model: SustainabilityModel):
     return solara_figure
 
 def make_co2_emissions_plot(model: SustainabilityModel):
+    Debugger.debug_plot(model)
+    transports = ["car", "bike", "walk", "eletric_scooter"]
     co2_emissions = model.data_collector.get_model_vars_dataframe()["CO2_emissions"]
     timesteps = co2_emissions.index
-    Debugger.debug_plot(model)
+    # co2_emissions_car = co2_emissions.apply(lambda co2: co2["car"])
+    
+    total_co2_emissions = co2_emissions.apply(lambda co2: sum(co2.values()))
 
     fig, ax = plt.subplots()
-    ax.plot(timesteps, co2_emissions)
+
+    for transport in transports:
+        ax.plot(timesteps, co2_emissions.apply(lambda co2: co2.get(transport, 0)), label=transport, linestyle="dashed")
+    ax.plot(timesteps, total_co2_emissions, label="Total")
+
     ax.set_title("CO2 Emissions over time")
     ax.set_xlabel("Time Step")
     ax.set_ylabel("CO2 Emissions")
+    ax.legend()
     fig.tight_layout()
 
     # Render the plot in Solara
