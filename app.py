@@ -66,7 +66,7 @@ class Debugger:
         print(f"{Debugger.i}: Rendering graph")
         Debugger.i += 1
 
-def make_graph(model):
+def make_graph(model: SustainabilityModel):
     Debugger.debug_graph_rendering(model)
     worker_agent_positions_state = model.get_worker_positions()
     merged_graph = model.grid.G
@@ -130,6 +130,29 @@ def make_graph(model):
         s=30,
         c="black",
     )
+    solara_figure = solara.FigureMatplotlib(fig)
+
+    # Close the matplotlib figure explicitly (otherwise unused figures would still be open)
+    plt.close(fig)
+
+    return solara_figure
+
+
+def make_sustainable_choices_plot(model: SustainabilityModel):
+    # Retrieve data from the DataCollector
+    results = model.data_collector.get_model_vars_dataframe()
+    time_steps = results.index
+    sustainable_choices = results['SustainableChoices']
+
+    # Create a plot
+    fig, ax = plt.subplots()
+    ax.plot(time_steps, sustainable_choices, label="Sustainable Choices", color="green")
+    ax.set_title("Sustainability Over Time")
+    ax.set_xlabel("Time Step")
+    ax.set_ylabel("Sustainable Choices")
+    ax.legend()
+
+    # Render the plot in Solara
     solara_figure = solara.FigureMatplotlib(fig)
 
     # Close the matplotlib figure explicitly (otherwise unused figures would still be open)
