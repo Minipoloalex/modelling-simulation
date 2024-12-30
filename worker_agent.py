@@ -74,50 +74,64 @@ class WorkerAgent(Agent):
         self.activities_during_day = []
         self.home_position = home_position
        
-        information_to_work = {
+        self.information_to_work = {
             type: get_path_information(
                 graph, self.home_position, company.location_position
             )
             for type, graph in self.model.graphs.items()
         }
-        information_to_home = {
+        self.information_to_home = {
             type: get_path_information(
                 graph, company.location_position, self.home_position
             )
             for type, graph in self.model.graphs.items()
         }
-        distances_to_choose_transport = {
+        self.distances_to_choose_transport = {
             type: (
-                (information_to_home[type].transport_distance + information_to_work[type].transport_distance) / 2,
-                (information_to_home[type].additional_distance + information_to_work[type].additional_distance) / 2,
+                (self.information_to_home[type].transport_distance + self.information_to_work[type].transport_distance) / 2,
+                (self.information_to_home[type].additional_distance + self.information_to_work[type].additional_distance) / 2,
             )
             for type in self.model.graphs.keys()
         }
-        self.transport_chosen: str = self.choose_transport(distances_to_choose_transport)
+        self.transport_chosen: str = self.choose_transport(self.distances_to_choose_transport)
+        self.__setup_transport_chosen()
+
+    def __setup_transport_chosen(self):
+        # Allows choosing a different transport at a given step in the simulation, even though it's not recommended
+
         self.chosen_graph_name: str = self.transport_graph[self.transport_chosen]
         self.graph: nx.MultiDiGraph = self.model.graphs[self.chosen_graph_name]
 
-        chosen_information_to_work = information_to_work[self.chosen_graph_name]
-        chosen_information_to_home = information_to_home[self.chosen_graph_name]
+        chosen_information_to_work = self.information_to_work[self.chosen_graph_name]
+        chosen_information_to_home = self.information_to_home[self.chosen_graph_name]
         self.distances = {
             "to_work": (chosen_information_to_work.transport_distance, chosen_information_to_work.additional_distance),
             "to_home": (chosen_information_to_home.transport_distance, chosen_information_to_home.additional_distance),
         }
         self.paths = {
-            "to_work": information_to_work[self.chosen_graph_name].path,
-            "to_home": information_to_home[self.chosen_graph_name].path,
+            "to_work": self.information_to_work[self.chosen_graph_name].path,
+            "to_home": self.information_to_home[self.chosen_graph_name].path,
         }
         self.current_path_name = "to_work"
         self.current_path: list[int] = self.paths[self.current_path_name]
 
-        self.model.grid.place_agent(self, self.current_path[0])
+        if self.pos is None:
+            self.model.grid.place_agent(self, self.current_path[0])
+        else:
+            self.model.grid.move_agent(self, self.current_path[0])
 
         self.node_index = 0
         self.partial_finish = False
 
     def switch_path(self) -> None:
         self.partial_finish = False
-        self.current_path_name = "to_home" if self.current_path_name == "to_work" else "to_work"
+        if self.current_path_name == "to_work":
+            self.current_path_name = "to_home"
+        else:
+            self.current_path_name = "to_work"
+            self.transport_chosen = self.choose_transport(self.distances_to_choose_transport)
+            self.__setup_transport_chosen()
+
         self.current_path = self.paths[self.current_path_name]
         self.node_index = 0
 
