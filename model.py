@@ -59,9 +59,8 @@ class SustainabilityModel(Model):
         self.data_collector = DataCollector(
             model_reporters={
                 # "SustainableChoices": self.calculate_sustainable_choices,
-                "CO2Emissions": self.calculate_CO2_emissions, 
+                "CO2_emissions": self.calculate_CO2_emissions, 
                 "Time Spent in transports per agent": self.calculate_time_spent_in_transports,
-                "Number of times each transport was used overall": self.calculate_times_each_transport_was_used,
                 # Travelled distance ?
                 # "How many times each transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
             },
@@ -106,19 +105,14 @@ class SustainabilityModel(Model):
         return sum(agent.kms_bycicle[0]+agent.kms_walk[0] for agent in self.schedule.agents if isinstance(agent, WorkerAgent))
 
     def calculate_times_each_transport_was_used(self):
-        total_times_car = 0
-        total_times_bycicle = 0
-        total_times_electric_scooter = 0
-        total_times_walk = 0
-
-        for agent in self.schedule.agents:
-            if isinstance(agent, WorkerAgent):
-                total_times_car += agent.kms_car[0]
-                total_times_bycicle += agent.kms_bycicle[0]
-                total_times_electric_scooter += agent.kms_electric_scooter[0]
-                total_times_walk += agent.kms_walk[0]
-        final_dict = {"Total times car was used": total_times_car, "Total times bycicle was used": total_times_bycicle, "Total times electric scooter was used": total_times_electric_scooter, "Total times walk was used": total_times_walk}
-        return final_dict    
+        transports = ["car", "bike", "electric_scooter", "walk"]
+        final_dict = {
+            transport: 0
+            for transport in transports
+        }
+        for agent in self.worker_agents:
+            final_dict[agent.transport_chosen] += 1
+        return final_dict
     
     def calculate_times_each_transport_was_used_per_agent(self):
         final_dict = {}
@@ -153,8 +147,8 @@ class SustainabilityModel(Model):
 
 
     def step(self):
-        self.data_collector.collect(self)
         self.schedule.step()
+        self.data_collector.collect(self)
 
         partial_finish = all(agent.partial_finish for agent in self.worker_agents)
         if partial_finish:

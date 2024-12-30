@@ -60,11 +60,17 @@ model = SustainabilityModel(
 DISTANCE_FACTOR = 10
 
 class Debugger:
-    i = 1
+    ig = 1
+    ip = 1
     @staticmethod
     def debug_graph_rendering(model):
-        print(f"{Debugger.i}: Rendering graph")
-        Debugger.i += 1
+        print(f"{Debugger.ig}: Rendering graph")
+        Debugger.ig += 1
+    @staticmethod
+    def debug_plot(model):
+        print(f"{Debugger.ip}: Rendering plot")
+        Debugger.ip += 1
+    
 
 def make_graph(model: SustainabilityModel):
     Debugger.debug_graph_rendering(model)
@@ -137,29 +143,46 @@ def make_graph(model: SustainabilityModel):
 
     return solara_figure
 
+def make_transport_usage_plot(model: SustainabilityModel):
+    """
+    Generates a bar plot to visualize the times each transport method was used.
 
-def make_sustainable_choices_plot(model: SustainabilityModel):
-    # Retrieve data from the DataCollector
-    results = model.data_collector.get_model_vars_dataframe()
-    time_steps = results.index
-    sustainable_choices = results['SustainableChoices']
+    Args:
+        model: The simulation model instance.
+    """
+    results = model.calculate_times_each_transport_was_used()
 
-    # Create a plot
+    # Create a bar plot
     fig, ax = plt.subplots()
-    ax.plot(time_steps, sustainable_choices, label="Sustainable Choices", color="green")
-    ax.set_title("Sustainability Over Time")
-    ax.set_xlabel("Time Step")
-    ax.set_ylabel("Sustainable Choices")
-    ax.legend()
+    ax.bar(results.keys(), results.values())
+    ax.set_title("Transport Usage Frequency")
+    ax.set_xlabel("Transport Method")
+    ax.set_ylabel("Number of People")
 
     # Render the plot in Solara
     solara_figure = solara.FigureMatplotlib(fig)
 
-    # Close the matplotlib figure explicitly (otherwise unused figures would still be open)
     plt.close(fig)
 
     return solara_figure
 
+def make_co2_emissions_plot(model: SustainabilityModel):
+    co2_emissions = model.data_collector.get_model_vars_dataframe()["CO2_emissions"]
+    timesteps = co2_emissions.index
+    Debugger.debug_plot(model)
+
+    fig, ax = plt.subplots()
+    ax.plot(timesteps, co2_emissions)
+    ax.set_title("CO2 Emissions over time")
+    ax.set_xlabel("Time Step")
+    ax.set_ylabel("CO2 Emissions")
+    fig.tight_layout()
+
+    # Render the plot in Solara
+    solara_figure = solara.FigureMatplotlib(fig)
+    plt.close(fig)
+
+    return solara_figure
 
 @solara.component
 def Page():
@@ -167,7 +190,7 @@ def Page():
     SolaraViz(
         model,
         components=[
-            make_graph,
+            make_graph, make_transport_usage_plot, make_co2_emissions_plot,
         ],
         model_params=model_params,
         name="Sustainability Model",
