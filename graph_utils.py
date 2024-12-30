@@ -7,6 +7,7 @@ import math
 import numpy as np
 from mesa.space import NetworkGrid
 import random
+from collections import namedtuple
 
 # ox.settings.log_console = True
 
@@ -45,10 +46,10 @@ def get_shortest_path(graph: nx.Graph, source_id: int, target_id: int) -> list[i
     return routing.shortest_path(graph, source_id, target_id, weight="length")
 
 
-def convert_m_to_km(distance: float):
+def convert_m_to_km(distance: float) -> float:
     return distance / 1000
 
-def _get_total_distance(graph: nx.Graph, path: list[int]) -> float:
+def _get_path_distance(graph: nx.Graph, path: list[int]) -> float:
     total_distance = 0.0
 
     # Iterate over consecutive pairs in the path
@@ -58,16 +59,21 @@ def _get_total_distance(graph: nx.Graph, path: list[int]) -> float:
     return total_distance
 
 
-def get_total_distance(
+PathInformation = namedtuple("PathInformation", ["path", "transport_distance", "additional_distance"])
+
+def get_path_information(
     graph: nx.Graph,
     source_position: tuple[float, float],
     target_pos: tuple[float, float],
-) -> tuple[float, float]:
+) -> PathInformation:
     source_node, source_distance = get_closest_node(graph, source_position)
     target_node, target_distance = get_closest_node(graph, target_pos)
     path = get_shortest_path(graph, source_node, target_node)
 
-    return convert_m_to_km(_get_total_distance(graph, path)), convert_m_to_km(source_distance + target_distance)
+    transport_distance = convert_m_to_km(_get_path_distance(graph, path))
+    additional_distance = convert_m_to_km(source_distance + target_distance)
+
+    return PathInformation(path, transport_distance, additional_distance)
 
 def random_position_within_radius(rng, center_position, radius):
     """
@@ -113,23 +119,23 @@ def mix_colors(color1, color2):
     return f"#{mixed_rgb[0]:02x}{mixed_rgb[1]:02x}{mixed_rgb[2]:02x}"
 
 
-def merge_graphs(grid_names: list[str], grids: dict[str, NetworkGrid]) -> nx.MultiDiGraph:
+def merge_graphs(graph_names: list[str], graphs: dict[str, nx.MultiDiGraph]) -> nx.MultiDiGraph:
     # Define colors for each graph
-    graph_colors = ["#FF0000", "#00FF00", "#0000FF"]  # RGB
+    graph_colors = ["#000000", "#000000", "#000000"]
 
     # Initialize a merged graph
     merged_graph = nx.MultiDiGraph()
 
     # Step 1: Add nodes and edges to the merged graph with attributes
-    for i, grid_name in enumerate(grid_names):
+    for i, grid_name in enumerate(graph_names):
         color = graph_colors[i]
-        graph = grids[grid_name].G
+        graph = graphs[grid_name]
 
         # Add nodes with color attribute
         for node, data in graph.nodes(data=True):
             if merged_graph.has_node(node):
                 # If the node exists, combine the color
-                existing_color = merged_graph.nodes[node].get("color", "#FFFFFF")  # Default to white
+                existing_color = merged_graph.nodes[node].get("color", "#000000")  # Default to white
                 merged_graph.nodes[node]["color"] = mix_colors(existing_color, color)
             else:
                 merged_graph.add_node(node, **data, color=color)
@@ -140,7 +146,7 @@ def merge_graphs(grid_names: list[str], grids: dict[str, NetworkGrid]) -> nx.Mul
             if merged_graph.has_edge(u, v):
                 # Combine the color for existing edges
                 for edge_key in merged_graph[u][v]:
-                    existing_color = merged_graph[u][v][edge_key].get("color", "#FFFFFF")
+                    existing_color = merged_graph[u][v][edge_key].get("color", "#000000")
                     merged_graph[u][v][edge_key]["color"] = mix_colors(existing_color, color)
             else:
                 merged_graph.add_edge(u, v, color=color, **data)
