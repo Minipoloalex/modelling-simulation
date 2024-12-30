@@ -45,26 +45,24 @@ class SustainabilityModel(Model):
         self.num_agents = self.num_workers + self.num_companies
 
         self.graphs = graphs
-        self.grids = {
-            type: NetworkGrid(graph)
-            for type, graph in self.graphs.items()
-        }
         self.grid = NetworkGrid(
             merge_graphs(
-                grid_names=sorted(self.grids.keys()),
-                grids=self.grids
+                graph_names=sorted(self.graphs.keys()),
+                graphs=self.graphs
             )
         )
-        self.visualization_graph_type = sorted(self.grids.keys())[0]    # Use only one of the grids for visualization
+
+        # Use one of the graphs for company location visualization
+        self.visualization_graph_type = sorted(self.graphs.keys())[0]
 
         self.schedule = RandomActivation(self)
         self.data_collector = DataCollector(
             model_reporters={
-                "SustainableChoices": self.calculate_sustainable_choices,
-                "CO2Emissions": self.calculate_CO2_emissions, # think on how we can change these in order to have a good calculation
+                # "SustainableChoices": self.calculate_sustainable_choices,
+                "CO2_emissions": self.calculate_CO2_emissions, 
                 "Time Spent in transports per agent": self.calculate_time_spent_in_transports,
-                "Number of times each transport was used overall": self.calculate_times_each_transport_was_used,
-                "How many times each transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
+                # Travelled distance ?
+                # "How many times each transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
             },
             agent_reporters={"SustainableChoice": "sustainable_choice"},
         ) # Now we need to plot all these information at the end of the simulation for better visualization
@@ -91,7 +89,9 @@ class SustainabilityModel(Model):
             transport = self.random.choice(transports)      # Random preferred transport
             company = self.random.choice(self.company_agents)    # Random company works in
 
-            worker = WorkerAgent(self, worker_type, transport, company, position)   # Should be place in grids later
+            # Places itself on the grid at correct node
+            worker = WorkerAgent(self, worker_type, transport, company, position)
+            company.add_worker(worker)
             self.schedule.add(worker)
 
         return self.agents[self.num_companies :]
@@ -102,27 +102,17 @@ class SustainabilityModel(Model):
         }
 
     def calculate_sustainable_choices(self):
-        sustainable_workers = sum(
-            1
-            for a in self.schedule.agents
-            if isinstance(a, WorkerAgent) and a.sustainable_choice
-        )
-        return sustainable_workers / self.num_agents
+        return sum(agent.kms_bycicle[0]+agent.kms_walk[0] for agent in self.schedule.agents if isinstance(agent, WorkerAgent))
 
     def calculate_times_each_transport_was_used(self):
-        total_times_car = 0
-        total_times_bycicle = 0
-        total_times_electric_scooter = 0
-        total_times_walk = 0
-
-        for agent in self.schedule.agents:
-            if isinstance(agent, WorkerAgent):
-                total_times_car += agent.kms_car[0]
-                total_times_bycicle += agent.kms_bycicle[0]
-                total_times_electric_scooter += agent.kms_electric_scooter[0]
-                total_times_walk += agent.kms_walk[0]
-        final_dict = {"Total times car was used": total_times_car, "Total times bycicle was used": total_times_bycicle, "Total times electric scooter was used": total_times_electric_scooter, "Total times walk was used": total_times_walk}
-        return final_dict    
+        transports = ["car", "bike", "electric_scooter", "walk"]
+        final_dict = {
+            transport: 0
+            for transport in transports
+        }
+        for agent in self.worker_agents:
+            final_dict[agent.transport_chosen] += 1
+        return final_dict
     
     def calculate_times_each_transport_was_used_per_agent(self):
         final_dict = {}
@@ -145,19 +135,27 @@ class SustainabilityModel(Model):
                 time_kms_bycicle = agent.kms_bycicle[1] / 15 # kms / 15km/h = time in hours
                 final_dict[agent.unique_id] = {"Time spent driving car": time_kms_Car, "Time spent using an electrical scooter": time_kms_e_scooter, "Time spent walking:": time_kms_walk, "Time spent bycicling":  time_kms_bycicle}
         return final_dict
-    
-    def calculate_CO2_emissions(self):
-        for agent in self.schedule.agents:
-            if isinstance(agent, WorkerAgent):
-                CO2_kms_Car = agent.kms_car * 250 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
-                CO2_kms_e_scooter = agent.kms_electric_scooter * 67 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
-        return CO2_kms_Car + CO2_kms_e_scooter
 
+    def calculate_CO2_emissions(self):
+        CO2_kms_car = 0
+        CO2_kms_e_scooter = 0
+        for agent in self.worker_agents:
+            CO2_kms_car += agent.kms_car[1] * 250 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+            CO2_kms_e_scooter += agent.kms_electric_scooter[1] * 67 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+
+        return {
+            "car": CO2_kms_car,
+            "eletric_scooter": CO2_kms_e_scooter,
+        }
 
     def step(self):
-        self.data_collector.collect(self)
         self.schedule.step()
+        self.data_collector.collect(self)
 
+        partial_finish = all(agent.partial_finish for agent in self.worker_agents)
+        if partial_finish:
+            for agent in self.worker_agents:
+                agent.switch_path()
 
 
 # Running/Testing the model
@@ -200,14 +198,10 @@ if __name__ == "__main__":
     # Access the collected data for analysis
     results = model.data_collector.get_model_vars_dataframe()
     #print(results)
-    print(results.head()) #need to understand what the columns refer to
-    
+    #print(results) #need to understand what the columns refer to
+    #results.to_csv("results.csv")
     # Start plotting statistics
-    # SustainableChoices --> How many sustainable choices were made per day
-    g = sns.lineplot(data=results["SustainableChoices"])
-    g.set(title="Sustainable Choices over Time", ylabel="Sustainable Choices", xlabel="Iterations")
-    plt.show()
-    # CO2Emissions --> How CO2 emissions changed over time 
+    # Outdated plots were removed (plots can be found on app.py, probably should be moved to Model)
     # Time Spent in transports per agent --> Table to display this information where each row represents an agent
     # Number of times each transport was used overall --> the number of times each transport was used during the iterations
     # Which transport was used per agent --> Table to display this information where each row represents an agent
