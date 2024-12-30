@@ -45,6 +45,9 @@ def get_shortest_path(graph: nx.Graph, source_id: int, target_id: int) -> list[i
     return routing.shortest_path(graph, source_id, target_id, weight="length")
 
 
+def convert_m_to_km(distance: float):
+    return distance / 1000
+
 def _get_total_distance(graph: nx.Graph, path: list[int]) -> float:
     total_distance = 0.0
 
@@ -64,7 +67,7 @@ def get_total_distance(
     target_node, target_distance = get_closest_node(graph, target_pos)
     path = get_shortest_path(graph, source_node, target_node)
 
-    return _get_total_distance(graph, path), source_distance + target_distance
+    return convert_m_to_km(_get_total_distance(graph, path)), convert_m_to_km(source_distance + target_distance)
 
 def random_position_within_radius(rng, center_position, radius):
     """
