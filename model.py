@@ -15,6 +15,10 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+CAR_CO2_VALUE = 250
+ESCOOTER_CO2_VALUE = 67
+DEFAULT_CO2_BUDGET = int(1e5)
+
 class SustainabilityModel(Model):
     def __init__(
         self,
@@ -25,6 +29,7 @@ class SustainabilityModel(Model):
         center_position: tuple[float, float] = None,
         company_location_radius: int = 1000,
         agent_home_radius: int = 5000,
+        company_budget: int = DEFAULT_CO2_BUDGET,
         seed: Optional[int] = None,
     ):
         print("Init model", num_workers)
@@ -43,6 +48,7 @@ class SustainabilityModel(Model):
         self.num_companies = sum(company[0] for company in companies)
         self.num_workers = num_workers
         self.num_agents = self.num_workers + self.num_companies
+        self.company_budget = company_budget
 
         self.graphs = graphs
         self.grid = NetworkGrid(
@@ -61,6 +67,7 @@ class SustainabilityModel(Model):
                 # "SustainableChoices": self.calculate_sustainable_choices,
                 "CO2_emissions": self.calculate_CO2_emissions, 
                 "Time Spent in transports per agent": self.calculate_time_spent_in_transports,
+                "CO2_avg_per_company": self.calculate_CO2_avg_per_company,
                 # Travelled distance ?
                 # "How many times each transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
             },
@@ -69,6 +76,9 @@ class SustainabilityModel(Model):
 
         self.company_agents: list[CompanyAgent] = self.__init_companies(center_position, companies, company_location_radius)
         self.worker_agents: list[WorkerAgent] = self.__init_agents(center_position, worker_types_distribution, agent_home_radius)
+
+        self.path_switches = 0
+        self.finished = False
 
 
     def __init_companies(self, center_position: tuple[float, float], companies, possible_radius):
@@ -136,17 +146,31 @@ class SustainabilityModel(Model):
                 final_dict[agent.unique_id] = {"Time spent driving car": time_kms_Car, "Time spent using an electrical scooter": time_kms_e_scooter, "Time spent walking:": time_kms_walk, "Time spent bycicling":  time_kms_bycicle}
         return final_dict
 
+    def get_total_co2(self, agent: WorkerAgent) -> float:
+        return agent.kms_car[1] * CAR_CO2_VALUE + agent.kms_electric_scooter[1] * ESCOOTER_CO2_VALUE
+
     def calculate_CO2_emissions(self):
         CO2_kms_car = 0
         CO2_kms_e_scooter = 0
         for agent in self.worker_agents:
-            CO2_kms_car += agent.kms_car[1] * 250 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
-            CO2_kms_e_scooter += agent.kms_electric_scooter[1] * 67 # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+            CO2_kms_car += agent.kms_car[1] * CAR_CO2_VALUE # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+            CO2_kms_e_scooter += agent.kms_electric_scooter[1] * ESCOOTER_CO2_VALUE # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
 
         return {
             "car": CO2_kms_car,
             "eletric_scooter": CO2_kms_e_scooter,
         }
+
+    def calculate_CO2_avg_per_company(self):
+        companies_co2 = []
+        for company in self.company_agents:
+            company_co2 = 0
+            for agent in company.workers:
+                company_co2 += self.get_total_co2(agent)
+            
+            company_co2_avg = company_co2 / len(company.workers) if len(company.workers) != 0 else 0
+            companies_co2.append(company_co2_avg)
+        return companies_co2
 
     def step(self):
         self.schedule.step()
@@ -154,8 +178,12 @@ class SustainabilityModel(Model):
 
         partial_finish = all(agent.partial_finish for agent in self.worker_agents)
         if partial_finish:
+            self.path_switches += 1
             for agent in self.worker_agents:
                 agent.switch_path()
+
+            if self.path_switches == 2:
+                self.finished = True
 
 
 # Running/Testing the model
@@ -197,6 +225,7 @@ if __name__ == "__main__":
 
     # Access the collected data for analysis
     results = model.data_collector.get_model_vars_dataframe()
+    print(results)
     #print(results)
     #print(results) #need to understand what the columns refer to
     #results.to_csv("results.csv")
