@@ -2,12 +2,13 @@ import osmnx as ox
 import networkx as nx
 import osmnx.distance as distance
 import osmnx.routing as routing
-import osmnx.truncate
+import osmnx.truncate as truncate
 import math
 import numpy as np
 from mesa.space import NetworkGrid
 import random
 from collections import namedtuple
+from osmnx.utils_geo import bbox_from_point
 
 # ox.settings.log_console = True
 
@@ -15,17 +16,17 @@ def load_graphs(center_point, distance=5000) -> dict[str, nx.Graph]:
     drive_graph = ox.graph_from_point(
         center_point=center_point, dist=distance, network_type="drive"
     )
-    drive_graph = osmnx.truncate.largest_component(drive_graph, strongly=True)
+    drive_graph = truncate.largest_component(drive_graph, strongly=True)
 
     bike_graph = ox.graph_from_point(
         center_point=center_point, dist=distance, network_type="bike"
     )
-    bike_graph = osmnx.truncate.largest_component(bike_graph, strongly=True)
+    bike_graph = truncate.largest_component(bike_graph, strongly=True)
 
     walk_graph = ox.graph_from_point(
         center_point=center_point, dist=distance, network_type="walk"
     )
-    walk_graph = osmnx.truncate.largest_component(walk_graph, strongly=True)
+    walk_graph = truncate.largest_component(walk_graph, strongly=True)
 
     return {
         "drive": drive_graph,
@@ -45,6 +46,13 @@ def get_closest_node(G, point) -> tuple[any, float]:
 def get_shortest_path(graph: nx.Graph, source_id: int, target_id: int) -> list[int]:
     return routing.shortest_path(graph, source_id, target_id, weight="length")
 
+def create_subgraph_within_radius(G: nx.MultiDiGraph, center_position, distance):
+    """
+    Create a subgraph with only nodes within the specified distance from the center position.
+    """
+    bbox = bbox_from_point(center_position, distance)
+    subgraph = truncate.truncate_graph_bbox(G, bbox, truncate_by_edge=False)
+    return subgraph
 
 def convert_m_to_km(distance: float) -> float:
     return distance / 1000
@@ -108,46 +116,9 @@ def random_position_within_radius(rng, center_position, radius):
     return new_lat, new_lon
 
 
-
-def mix_colors(color1, color2):
-    """
-    Mix two hex colors by adding their RGB components.
-    """
-    rgb1 = np.array([int(color1[i:i+2], 16) for i in (1, 3, 5)])
-    rgb2 = np.array([int(color2[i:i+2], 16) for i in (1, 3, 5)])
-    mixed_rgb = np.minimum(255, (rgb1 + rgb2).astype(int))
-    return f"#{mixed_rgb[0]:02x}{mixed_rgb[1]:02x}{mixed_rgb[2]:02x}"
-
-
 def merge_graphs(graph_names: list[str], graphs: dict[str, nx.MultiDiGraph]) -> nx.MultiDiGraph:
-    # Define colors for each graph
-    graph_colors = ["#000000", "#000000", "#000000"]
-
-    # Initialize a merged graph
-    merged_graph = nx.MultiDiGraph()
-
-    # Step 1: Add nodes and edges to the merged graph with attributes
-    for i, grid_name in enumerate(graph_names):
-        color = graph_colors[i]
+    merged_graph = graphs[graph_names[0]].copy()
+    for grid_name in graph_names[1:]:
         graph = graphs[grid_name]
-
-        # Add nodes with color attribute
-        for node, data in graph.nodes(data=True):
-            if merged_graph.has_node(node):
-                # If the node exists, combine the color
-                existing_color = merged_graph.nodes[node].get("color", "#000000")  # Default to white
-                merged_graph.nodes[node]["color"] = mix_colors(existing_color, color)
-            else:
-                merged_graph.add_node(node, **data, color=color)
-
-        # Add edges with color attribute
-        for u, v, data in graph.edges(data=True):
-            # Check if edge exists already, merge the color
-            if merged_graph.has_edge(u, v):
-                # Combine the color for existing edges
-                for edge_key in merged_graph[u][v]:
-                    existing_color = merged_graph[u][v][edge_key].get("color", "#000000")
-                    merged_graph[u][v][edge_key]["color"] = mix_colors(existing_color, color)
-            else:
-                merged_graph.add_edge(u, v, color=color, **data)
+        merged_graph = nx.compose(merged_graph, graph)
     return merged_graph
