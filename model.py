@@ -96,17 +96,24 @@ class SustainabilityModel(Model):
     def __init_agents(self, center_position: tuple[float, float], worker_types_distribution, possible_radius):
         probs, types = zip(*worker_types_distribution)
         transports = ["car", "bicycle", "electric scooters", "walking"] #electric scooters = trotinete elétrica
-
+        i = 0
+        num_workers_per_company = self.num_workers // self.num_companies
         for _ in range(self.num_workers):
+            if num_workers_per_company == 0:
+                num_workers_per_company = self.num_workers // self.num_companies
+                i += 1
             worker_type = self.random.choices(types, weights=probs, k=1)[0] # Get worker type according to distribution
             position = random_position_within_radius(self.random, center_position, possible_radius)
             transport = self.random.choice(transports)      # Random preferred transport
-            company = self.random.choice(self.company_agents)    # Random company works in
+            company = self.company_agents[i]    # Random company works in
 
             # WorkerAgent Places itself on the grid at correct node
             worker = WorkerAgent(self, worker_type, transport, company, position)
             company.add_worker(worker)
             self.schedule.add(worker)
+            num_workers_per_company -= 1
+            print(i)
+            print(num_workers_per_company)
 
         return self.agents[self.num_companies :]
 
@@ -249,7 +256,7 @@ def get_co2_budget_plot(model: SustainabilityModel) -> Figure:
 
 # Running/Testing the model
 if __name__ == "__main__":
-    num_workers = 50
+    num_workers = 60
 
     center = 41.1664384, -8.6016
     graphs = load_graphs(center, distance=5000)
@@ -259,7 +266,7 @@ if __name__ == "__main__":
         [0.5, WorkerType.COST_SENSITIVE],
         [0.3, WorkerType.CONSERVATIVE],
     )
-    companies = [(3, "policy0"), (2, "policy0"), (1, "policy0")]
+    companies = [(4,"policy1"),(3, "policy0"), (2, "policy0"), (1, "policy1")]
     model = SustainabilityModel(
         num_workers,
         worker_types_distribution,
@@ -287,10 +294,3 @@ if __name__ == "__main__":
 
     co2_budget_plot = get_co2_budget_plot(model)
     co2_budget_plot.savefig("co2_budget.png")
-
-
-    # results.to_csv("results.csv")
-    # Start plotting statistics
-    # Time Spent in transports per agent --> Table to display this information where each row represents an agent
-    # Number of times each transport was used overall --> the number of times each transport was used during the iterations
-    # Which transport was used per agent --> Table to display this information where each row represents an agent

@@ -73,7 +73,8 @@ class WorkerAgent(Agent):
         self.kms_electric_scooter = (0, 0)
         self.activities_during_day = []
         self.home_position = home_position
-       
+        self.sustainability_factor = 0 if self.company.policy == "policy0" else 0.3
+
         self.information_to_work = {
             type: get_path_information(
                 graph, self.home_position, company.location_position
@@ -95,6 +96,9 @@ class WorkerAgent(Agent):
         }
         self.transport_chosen: str = self.choose_transport(self.distances_to_choose_transport)
         self.__setup_transport_chosen()
+
+    def modify_sustainable_factor(self, raise_value) -> None:
+        self.sustainability_factor *= raise_value
 
     def __setup_transport_chosen(self) -> None:
         # Allows choosing a different transport at a given step in the simulation, even though it's not recommended
@@ -164,6 +168,11 @@ class WorkerAgent(Agent):
             "electric_scooter": electric_scooter_probability(transport_distance_eScooter + additional_walk_distance_eScooter),
             "walk": walking_probability(transport_distance_walk + additional_walk_distance_walk)
         }
+
+        # Sustainability bias
+        dynamic_weights["bike"] *= 1 + self.sustainability_factor*2
+        dynamic_weights["walk"] *= 1 + self.sustainability_factor*2
+        dynamic_weights["electric_scooter"] *= 1 + self.sustainability_factor
 
         # Normalize weights to form a proper probability distribution
         total_weight = sum(dynamic_weights.values())
