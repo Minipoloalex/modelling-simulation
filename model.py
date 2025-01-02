@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from worker_agent import WorkerAgent, WorkerType
 from company_agent import CompanyAgent
 
-from graph_utils import load_graphs, random_position_within_radius, merge_graphs
+from graph_utils import load_graphs, random_position_within_radius, merge_graphs, create_subgraph_within_radius
 from typing import Optional
 
 
@@ -80,6 +80,11 @@ class SustainabilityModel(Model):
         self.path_switches = 0
         self.finished = False
 
+        self.visualization_graph = (
+            self.grid.G
+            if agent_home_radius <= 1000
+            else create_subgraph_within_radius(self.grid.G, center_position, company_location_radius)
+        )
 
     def __init_companies(self, center_position: tuple[float, float], companies, possible_radius):
         for company_count, company_policy in companies:

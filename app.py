@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import solara
 import numpy as np
 
-total_radius = 1000
+total_radius = 5000
 company_location_radius = total_radius // 5
 center = 41.1664384, -8.6016
 graphs = load_graphs(center, distance=total_radius)
@@ -72,38 +72,27 @@ class Debugger:
 def make_graph(model: SustainabilityModel):
     Debugger.debug_graph_rendering(model)
     worker_agent_positions_state = model.get_worker_positions()
-    merged_graph = model.grid.G
+    visualization_graph = model.visualization_graph
 
     pos = {
         node: (data["x"], data["y"])
-        for node, data in merged_graph.nodes(data=True)
+        for node, data in visualization_graph.nodes(data=True)
     }
 
-    company_nodes = [company.pos for company in model.company_agents]
-    # company_color = "black"
-    # for company_node in company_nodes:
-    #     pos[company_node] = (
-    #         merged_graph.nodes[company_node]["x"],
-    #         merged_graph.nodes[company_node]["y"],
-    #     )
-
-    # node_colors = [
-    #     company_color if node in company_nodes else data.get("color", "#FFFFFF")
-    #     for node, data in merged_graph.nodes(data=True)
-    # ]
-    # edge_colors = [data.get("color", "gray") for _, _, data in merged_graph.edges(data=True)]
-    # node_sizes = [
-    #     20 if node in company_nodes else 1
-    #     for node in merged_graph.nodes
-    # ]
+    company_nodes = [
+        company.pos
+        for company in model.company_agents
+        if company.pos in visualization_graph.nodes
+    ]
 
     worker_nodes = {}
     for worker_node in worker_agent_positions_state.values():
-        worker_nodes[worker_node] = worker_nodes.get(worker_node, 0) + 1
+        if worker_node in visualization_graph.nodes:
+            worker_nodes[worker_node] = worker_nodes.get(worker_node, 0) + 1
 
     fig, ax = plt.subplots()
     nx.draw(
-        merged_graph,
+        visualization_graph,
         pos=pos,
         ax=ax,
         node_size=1,
@@ -118,8 +107,8 @@ def make_graph(model: SustainabilityModel):
     sizes = [min_size + (max_size - min_size) * (count / max_count) for count in worker_nodes.values()]
 
     ax.scatter(
-        [merged_graph.nodes[worker_node]["x"] for worker_node in worker_nodes.keys()],
-        [merged_graph.nodes[worker_node]["y"] for worker_node in worker_nodes.keys()],
+        [visualization_graph.nodes[worker_node]["x"] for worker_node in worker_nodes.keys()],
+        [visualization_graph.nodes[worker_node]["y"] for worker_node in worker_nodes.keys()],
         s=sizes,
         c=None,
         cmap=None,
@@ -128,8 +117,8 @@ def make_graph(model: SustainabilityModel):
     )
 
     ax.scatter(
-        [merged_graph.nodes[company_node]["x"] for company_node in company_nodes],
-        [merged_graph.nodes[company_node]["y"] for company_node in company_nodes],
+        [visualization_graph.nodes[company_node]["x"] for company_node in company_nodes],
+        [visualization_graph.nodes[company_node]["y"] for company_node in company_nodes],
         s=30,
         c="black",
     )
