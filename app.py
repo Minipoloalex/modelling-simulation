@@ -57,8 +57,6 @@ model = SustainabilityModel(
     seed=42,
 )
 
-DISTANCE_FACTOR = 10
-
 class Debugger:
     ig = 1
     ip = 1
@@ -70,7 +68,6 @@ class Debugger:
     def debug_plot(model):
         print(f"{Debugger.ip}: Rendering plot")
         Debugger.ip += 1
-    
 
 def make_graph(model: SustainabilityModel):
     Debugger.debug_graph_rendering(model)
@@ -78,40 +75,40 @@ def make_graph(model: SustainabilityModel):
     merged_graph = model.grid.G
 
     pos = {
-        node: (data["x"] * DISTANCE_FACTOR, data["y"] * DISTANCE_FACTOR)
+        node: (data["x"], data["y"])
         for node, data in merged_graph.nodes(data=True)
     }
 
     company_nodes = [company.pos for company in model.company_agents]
-    company_color = "black"
-    for company_node in company_nodes:
-        pos[company_node] = (
-            merged_graph.nodes[company_node]["x"] * DISTANCE_FACTOR,
-            merged_graph.nodes[company_node]["y"] * DISTANCE_FACTOR,
-        )
+    # company_color = "black"
+    # for company_node in company_nodes:
+    #     pos[company_node] = (
+    #         merged_graph.nodes[company_node]["x"],
+    #         merged_graph.nodes[company_node]["y"],
+    #     )
 
-    node_colors = [
-        company_color if node in company_nodes else data.get("color", "#FFFFFF")
-        for node, data in merged_graph.nodes(data=True)
-    ]
-    edge_colors = [data.get("color", "gray") for _, _, data in merged_graph.edges(data=True)]
-    node_sizes = [
-        20 if node in company_nodes else 1
-        for node in merged_graph.nodes
-    ]
+    # node_colors = [
+    #     company_color if node in company_nodes else data.get("color", "#FFFFFF")
+    #     for node, data in merged_graph.nodes(data=True)
+    # ]
+    # edge_colors = [data.get("color", "gray") for _, _, data in merged_graph.edges(data=True)]
+    # node_sizes = [
+    #     20 if node in company_nodes else 1
+    #     for node in merged_graph.nodes
+    # ]
 
-    fig, ax = plt.subplots(figsize=(10, 10))
     worker_nodes = {}
     for worker_node in worker_agent_positions_state.values():
         worker_nodes[worker_node] = worker_nodes.get(worker_node, 0) + 1
 
+    fig, ax = plt.subplots()
     nx.draw(
         merged_graph,
         pos=pos,
         ax=ax,
-        node_size=node_sizes,
-        node_color=node_colors,
-        edge_color=edge_colors,
+        node_size=1,
+        node_color="black",
+        edge_color="black",
         with_labels=False,
         arrows=False,
     )
@@ -121,8 +118,8 @@ def make_graph(model: SustainabilityModel):
     sizes = [min_size + (max_size - min_size) * (count / max_count) for count in worker_nodes.values()]
 
     ax.scatter(
-        [merged_graph.nodes[worker_node]["x"] * DISTANCE_FACTOR for worker_node in worker_nodes.keys()],
-        [merged_graph.nodes[worker_node]["y"] * DISTANCE_FACTOR for worker_node in worker_nodes.keys()],
+        [merged_graph.nodes[worker_node]["x"] for worker_node in worker_nodes.keys()],
+        [merged_graph.nodes[worker_node]["y"] for worker_node in worker_nodes.keys()],
         s=sizes,
         c=None,
         cmap=None,
@@ -131,8 +128,8 @@ def make_graph(model: SustainabilityModel):
     )
 
     ax.scatter(
-        [merged_graph.nodes[company_node]["x"] * DISTANCE_FACTOR for company_node in company_nodes],
-        [merged_graph.nodes[company_node]["y"] * DISTANCE_FACTOR for company_node in company_nodes],
+        [merged_graph.nodes[company_node]["x"] for company_node in company_nodes],
+        [merged_graph.nodes[company_node]["y"] for company_node in company_nodes],
         s=30,
         c="black",
     )
@@ -193,13 +190,38 @@ def make_co2_emissions_plot(model: SustainabilityModel):
 
     return solara_figure
 
+def make_co2_budget_plot(model: SustainabilityModel):
+    budget = model.company_budget
+    co2_avgs = model.data_collector.get_model_vars_dataframe()["CO2_avg_per_company"]
+    timesteps = co2_avgs.index
+    co2_mean = co2_avgs.apply(np.mean)
+    co2_std = co2_avgs.apply(np.std)
+
+    fig, ax = plt.subplots()
+    ax.plot(timesteps, co2_mean, label="Mean CO2 Emissions", color="blue")
+    ax.fill_between(timesteps, co2_mean - co2_std, co2_mean + co2_std, color="blue", alpha=0.2, label="Std Dev")
+    ax.axhline(y=budget, color="red", linestyle="--", label="Budget Per Day")
+    ax.set_title("CO2 Emissions Per Employee Over Time")
+    ax.set_xlabel("Time Step")
+    ax.set_ylabel("CO2 Emissions")
+    ax.legend()
+
+    # Render the plot in Solara
+    solara_figure = solara.FigureMatplotlib(fig)
+    plt.close(fig)
+
+    return solara_figure
+
 @solara.component
 def Page():
     solara.Title("Sustainability Model")    
     SolaraViz(
         model,
         components=[
-            make_graph, make_transport_usage_plot, make_co2_emissions_plot,
+            make_graph,
+            make_co2_emissions_plot,
+            make_transport_usage_plot,
+            make_co2_budget_plot,
         ],
         model_params=model_params,
         name="Sustainability Model",

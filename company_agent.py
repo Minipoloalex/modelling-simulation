@@ -2,10 +2,10 @@ from mesa import Agent
 from graph_utils import get_closest_node
 
 class CompanyAgent(Agent):
-    def __init__(self, model, policy, location_position, workers = [],BASE_COMPANY_BUDGET= 1000):
+    def __init__(self, model, policy, location_position, BASE_COMPANY_BUDGET=  1000, workers = None):
         super().__init__(model=model)
         self.location_position = location_position
-        self.workers = workers
+        self.workers = workers if workers is not None else []
         self.policy = policy        # Policy for this company (0 = no policy, 1 = full policy)
         self.location_nodes = {
             type: get_closest_node(graph, location_position)[0]
