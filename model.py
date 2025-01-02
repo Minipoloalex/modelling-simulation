@@ -5,12 +5,13 @@ from mesa.datacollection import DataCollector
 import networkx as nx
 import osmnx as ox
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from worker_agent import WorkerAgent, WorkerType
 from company_agent import CompanyAgent
 
 from graph_utils import load_graphs, random_position_within_radius, merge_graphs, create_subgraph_within_radius
 from typing import Optional
-
+import numpy as np
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -32,7 +33,7 @@ class SustainabilityModel(Model):
         company_budget: int = DEFAULT_CO2_BUDGET,
         seed: Optional[int] = None,
     ):
-        print("Init model", num_workers)
+        print(f"Init model with {num_workers} workers")
         """
         Initialize the sustainability model with workers and companies.
 
@@ -64,15 +65,13 @@ class SustainabilityModel(Model):
         self.schedule = RandomActivation(self)
         self.data_collector = DataCollector(
             model_reporters={
-                # "SustainableChoices": self.calculate_sustainable_choices,
                 "CO2_emissions": self.calculate_CO2_emissions, 
-                "Time Spent in transports per agent": self.calculate_time_spent_in_transports,
+                "Time Spent in transports per agent": self.calculate_time_spent_in_transports,  # not plotted yet (should it be plotted?)
                 "CO2_avg_per_company": self.calculate_CO2_avg_per_company,
                 # Travelled distance ?
-                # "How many times each transport was used per agent": self.calculate_times_each_transport_was_used_per_agent
             },
             agent_reporters={"SustainableChoice": "sustainable_choice"},
-        ) # Now we need to plot all these information at the end of the simulation for better visualization
+        )
 
         self.company_agents: list[CompanyAgent] = self.__init_companies(center_position, companies, company_location_radius)
         self.worker_agents: list[WorkerAgent] = self.__init_agents(center_position, worker_types_distribution, agent_home_radius)
@@ -104,7 +103,7 @@ class SustainabilityModel(Model):
             transport = self.random.choice(transports)      # Random preferred transport
             company = self.random.choice(self.company_agents)    # Random company works in
 
-            # Places itself on the grid at correct node
+            # WorkerAgent Places itself on the grid at correct node
             worker = WorkerAgent(self, worker_type, transport, company, position)
             company.add_worker(worker)
             self.schedule.add(worker)
@@ -183,6 +182,8 @@ class SustainabilityModel(Model):
 
         partial_finish = all(agent.partial_finish for agent in self.worker_agents)
         if partial_finish:
+            # Wait until all agents have arrived at their destination before
+            # making them go somewhere else (go back)
             self.path_switches += 1
             for agent in self.worker_agents:
                 agent.switch_path()
@@ -191,16 +192,68 @@ class SustainabilityModel(Model):
                 self.finished = True
 
 
+def get_transport_usage_plot(model: SustainabilityModel) -> Figure:
+    """
+    Generates a bar plot to visualize the times each transport method was used.
+
+    Args:
+        model: The simulation model instance.
+    """
+    results = model.calculate_times_each_transport_was_used()
+
+    # Create a bar plot
+    fig, ax = plt.subplots()
+    ax.bar(results.keys(), results.values())
+    ax.set_title("Transport Usage Frequency")
+    ax.set_xlabel("Transport Method")
+    ax.set_ylabel("Number of People")
+    return fig
+
+def get_co2_emissions_plot(model: SustainabilityModel) -> Figure:
+    transports = ["car", "bike", "walk", "eletric_scooter"]
+    co2_emissions = model.data_collector.get_model_vars_dataframe()["CO2_emissions"]
+    timesteps = co2_emissions.index
+
+    total_co2_emissions = co2_emissions.apply(lambda co2: sum(co2.values()))
+
+    fig, ax = plt.subplots()
+
+    for transport in transports:
+        ax.plot(timesteps, co2_emissions.apply(lambda co2: co2.get(transport, 0)), label=transport, linestyle="dashed")
+    ax.plot(timesteps, total_co2_emissions, label="Total")
+
+    ax.set_title("CO2 Emissions over time")
+    ax.set_xlabel("Time Step")
+    ax.set_ylabel("CO2 Emissions")
+    ax.legend()
+    fig.tight_layout()
+    return fig
+
+def get_co2_budget_plot(model: SustainabilityModel) -> Figure:
+    budget = model.company_budget
+    co2_avgs = model.data_collector.get_model_vars_dataframe()["CO2_avg_per_company"]
+    timesteps = co2_avgs.index
+    co2_mean = co2_avgs.apply(np.mean)
+    co2_std = co2_avgs.apply(np.std)
+
+    fig, ax = plt.subplots()
+    ax.plot(timesteps, co2_mean, label="Mean CO2 Emissions", color="blue")
+    ax.fill_between(timesteps, co2_mean - co2_std, co2_mean + co2_std, color="blue", alpha=0.2, label="Std Dev")
+    ax.axhline(y=budget, color="red", linestyle="--", label="Budget Per Day")
+    ax.set_title("CO2 Emissions Per Employee Over Time")
+    ax.set_xlabel("Time Step")
+    ax.set_ylabel("CO2 Emissions")
+    ax.legend()
+    return fig
+
+
 # Running/Testing the model
 if __name__ == "__main__":
     num_workers = 50
 
     center = 41.1664384, -8.6016
     graphs = load_graphs(center, distance=5000)
-    # ox.plot_graph(drive)
-    # plt.show()
 
-    # center_node = get_closest_node(graph, center)
     worker_types_distribution = (
         [0.2, WorkerType.ENVIROMENTALLY_CONSCIOUS],
         [0.5, WorkerType.COST_SENSITIVE],
@@ -218,26 +271,26 @@ if __name__ == "__main__":
         seed=42
     )
 
-    for i in range(100):
+    while not model.finished:
         model.step()
-
-    # random_nodes = random.sample(sorted(graph.nodes.keys()), 2)
-    # print(f"Random nodes: {random_nodes}")
-    # shortest_path = model.get_shortest_path(graph, random_nodes[0], random_nodes[1])
-    # print(len(shortest_path))
-    # total_distance = model.get_total_distance(graph, shortest_path)
-    # print(total_distance)
+    print(f"Total number of model steps before finishing (one day): {model.steps}")
 
     # Access the collected data for analysis
     results = model.data_collector.get_model_vars_dataframe()
     print(results)
-    #print(results)
-    #print(results) #need to understand what the columns refer to
-    #results.to_csv("results.csv")
+
+    transport_usage_plot = get_transport_usage_plot(model)
+    transport_usage_plot.savefig("transport_usage.png")
+
+    co2_emissions_plot = get_co2_emissions_plot(model)
+    co2_emissions_plot.savefig("co2_emissions.png")
+
+    co2_budget_plot = get_co2_budget_plot(model)
+    co2_budget_plot.savefig("co2_budget.png")
+
+
+    # results.to_csv("results.csv")
     # Start plotting statistics
-    # Outdated plots were removed (plots can be found on app.py, probably should be moved to Model)
     # Time Spent in transports per agent --> Table to display this information where each row represents an agent
     # Number of times each transport was used overall --> the number of times each transport was used during the iterations
     # Which transport was used per agent --> Table to display this information where each row represents an agent
-    
-

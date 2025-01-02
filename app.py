@@ -7,7 +7,7 @@ from graph_utils import load_graphs
 import solara
 from matplotlib.figure import Figure
 
-from model import SustainabilityModel, WorkerType
+from model import SustainabilityModel, WorkerType, get_transport_usage_plot, get_co2_emissions_plot, get_co2_budget_plot
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import solara
 import numpy as np
 
-total_radius = 5000
+total_radius = 1000 # 1000m for developing, 5000m for actual simulations
 company_location_radius = total_radius // 5
 center = 41.1664384, -8.6016
 graphs = load_graphs(center, distance=total_radius)
@@ -110,17 +110,17 @@ def make_graph(model: SustainabilityModel):
         [visualization_graph.nodes[worker_node]["x"] for worker_node in worker_nodes.keys()],
         [visualization_graph.nodes[worker_node]["y"] for worker_node in worker_nodes.keys()],
         s=sizes,
-        c=None,
         cmap=None,
         facecolors="none",  # not filled
-        edgecolors="black",
+        edgecolors="green",
+        linewidths=2
     )
 
     ax.scatter(
         [visualization_graph.nodes[company_node]["x"] for company_node in company_nodes],
         [visualization_graph.nodes[company_node]["y"] for company_node in company_nodes],
         s=30,
-        c="black",
+        c="blue",
     )
     solara_figure = solara.FigureMatplotlib(fig)
 
@@ -130,72 +130,25 @@ def make_graph(model: SustainabilityModel):
     return solara_figure
 
 def make_transport_usage_plot(model: SustainabilityModel):
-    """
-    Generates a bar plot to visualize the times each transport method was used.
+    fig = get_transport_usage_plot(model)
 
-    Args:
-        model: The simulation model instance.
-    """
-    results = model.calculate_times_each_transport_was_used()
-
-    # Create a bar plot
-    fig, ax = plt.subplots()
-    ax.bar(results.keys(), results.values())
-    ax.set_title("Transport Usage Frequency")
-    ax.set_xlabel("Transport Method")
-    ax.set_ylabel("Number of People")
-
-    # Render the plot in Solara
     solara_figure = solara.FigureMatplotlib(fig)
-
     plt.close(fig)
 
     return solara_figure
 
 def make_co2_emissions_plot(model: SustainabilityModel):
     Debugger.debug_plot(model)
-    transports = ["car", "bike", "walk", "eletric_scooter"]
-    co2_emissions = model.data_collector.get_model_vars_dataframe()["CO2_emissions"]
-    timesteps = co2_emissions.index
-    # co2_emissions_car = co2_emissions.apply(lambda co2: co2["car"])
-    
-    total_co2_emissions = co2_emissions.apply(lambda co2: sum(co2.values()))
+    fig = get_co2_emissions_plot(model)
 
-    fig, ax = plt.subplots()
-
-    for transport in transports:
-        ax.plot(timesteps, co2_emissions.apply(lambda co2: co2.get(transport, 0)), label=transport, linestyle="dashed")
-    ax.plot(timesteps, total_co2_emissions, label="Total")
-
-    ax.set_title("CO2 Emissions over time")
-    ax.set_xlabel("Time Step")
-    ax.set_ylabel("CO2 Emissions")
-    ax.legend()
-    fig.tight_layout()
-
-    # Render the plot in Solara
     solara_figure = solara.FigureMatplotlib(fig)
     plt.close(fig)
 
     return solara_figure
 
 def make_co2_budget_plot(model: SustainabilityModel):
-    budget = model.company_budget
-    co2_avgs = model.data_collector.get_model_vars_dataframe()["CO2_avg_per_company"]
-    timesteps = co2_avgs.index
-    co2_mean = co2_avgs.apply(np.mean)
-    co2_std = co2_avgs.apply(np.std)
+    fig = get_co2_budget_plot(model)
 
-    fig, ax = plt.subplots()
-    ax.plot(timesteps, co2_mean, label="Mean CO2 Emissions", color="blue")
-    ax.fill_between(timesteps, co2_mean - co2_std, co2_mean + co2_std, color="blue", alpha=0.2, label="Std Dev")
-    ax.axhline(y=budget, color="red", linestyle="--", label="Budget Per Day")
-    ax.set_title("CO2 Emissions Per Employee Over Time")
-    ax.set_xlabel("Time Step")
-    ax.set_ylabel("CO2 Emissions")
-    ax.legend()
-
-    # Render the plot in Solara
     solara_figure = solara.FigureMatplotlib(fig)
     plt.close(fig)
 

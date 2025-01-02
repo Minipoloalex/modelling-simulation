@@ -96,7 +96,7 @@ class WorkerAgent(Agent):
         self.transport_chosen: str = self.choose_transport(self.distances_to_choose_transport)
         self.__setup_transport_chosen()
 
-    def __setup_transport_chosen(self):
+    def __setup_transport_chosen(self) -> None:
         # Allows choosing a different transport at a given step in the simulation, even though it's not recommended
 
         self.chosen_graph_name: str = self.transport_graph[self.transport_chosen]
@@ -135,7 +135,7 @@ class WorkerAgent(Agent):
         self.current_path = self.paths[self.current_path_name]
         self.node_index = 0
 
-    def choose_transport(self, distances):
+    def choose_transport(self, distances) -> str:
         transport_distance_car, additional_walk_distance_car = distances["drive"]
         transport_distance_walk, additional_walk_distance_walk = distances["walk"]
         transport_distance_eScooter, additional_walk_distance_eScooter = distances["bike"]
@@ -180,13 +180,13 @@ class WorkerAgent(Agent):
 
         return transport_chosen
 
-    def finish_partial_path(self):
-        # Includes the contribution of the walk distances from moving from location (latitude, longitude)
+    def finish_partial_path(self) -> None:
+        # Includes the contribution of the walk distances of moving from location (latitude, longitude)
         # to the start node, as well as the end node.
         additional_walk_distance = self.distances[self.current_path_name][1]
         self.kms_walk = (self.kms_walk[0], self.kms_walk[1] + additional_walk_distance)
 
-    def calculate_distance(self, start_node, end_node):
+    def calculate_distance(self, start_node, end_node) -> float:
         edges = self.graph[start_node][end_node]
         return min(edge["length"] for edge in edges.values())
 
