@@ -112,8 +112,6 @@ class SustainabilityModel(Model):
             company.add_worker(worker)
             self.schedule.add(worker)
             num_workers_per_company -= 1
-            print(i)
-            print(num_workers_per_company)
 
         return self.agents[self.num_companies :]
 
@@ -198,6 +196,10 @@ class SustainabilityModel(Model):
             if self.path_switches == 2:
                 self.finished = True
 
+            if self.path_switches % 2 == 0:
+                for company in self.company_agents:
+                    if company.policy != "policy0" or company.policy != "policy1":
+                        company.check_policies()
 
 def get_transport_usage_plot(model: SustainabilityModel) -> Figure:
     """

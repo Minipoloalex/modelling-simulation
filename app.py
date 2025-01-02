@@ -25,7 +25,7 @@ worker_types_distribution = (
     [0.5, WorkerType.COST_SENSITIVE],
     [0.3, WorkerType.CONSERVATIVE],
 )
-companies = [(3, "policy0"), (2, "policy1")]
+companies = [(3, "policy0"), (2, "policy1"), (1, "policy2"), (1, "policy3"), (1, "policy4")]
 num_workers = 60
 
 model_params = {
