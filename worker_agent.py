@@ -5,41 +5,7 @@ import math
 from mesa.space import NetworkGrid
 import networkx as nx
 from graph_utils import get_path_information, get_closest_node
-# self.time_to_work = self.__get_time_from_distances(self.distances_to_work)
-# self.time_to_home = self.__get_time_from_distances(self.distances_to_home)
-
-# print("Distances to work, home. Time to work, home")
-# print(self.distances_to_work)
-# print(self.distances_to_home)
-# print(self.time_to_work)
-# print(self.time_to_home)
-
-# def __get_time_from_distances(self, distances: dict[str, tuple[float]]):
-#     result = {}
-#     for transport, speed in self.transport_speed_kmh.items():
-#         graph_type = self.transport_graph[transport]
-
-#         # First you neeed to get from the source to the first node, then you can travel through the graph
-#         # Finally, you need to get to the destination
-#         path_distance, additional_distance = distances[graph_type]
-
-#         additional_time = additional_distance / self.walk_speed_kmh
-#         path_time = path_distance / speed
-#         result[transport] = path_time + additional_time
-#     return result
-
-# self.home_nodes = {
-#     type: get_closest_node(graph, self.home_position)[0]
-#     for type, graph in self.model.graphs.items()
-# }
-# self.visualization_home_node = self.home_nodes[self.model.visualization_graph_type]
-# self.visualization_company_node = self.company.visualization_node
-# self.model.grid.place_agent(self, self.visualization_home_node)
-
-class WorkerType(Enum):
-    ENVIROMENTALLY_CONSCIOUS = 1
-    COST_SENSITIVE = 2
-    CONSERVATIVE = 3
+from company_agent import CompanyAgent
 
 
 class WorkerAgent(Agent):
@@ -54,14 +20,10 @@ class WorkerAgent(Agent):
     def __init__(
         self,
         model,
-        worker_type,
-        preferred_transport,
-        company,
+        company: CompanyAgent,
         home_position: tuple[int, int],
     ):
         super().__init__(model=model)
-        self.worker_type = worker_type
-        self.preferred_transport = preferred_transport
         self.company = company
         
         self.sustainable_choice = False
@@ -73,7 +35,8 @@ class WorkerAgent(Agent):
         self.kms_electric_scooter = (0, 0)
         self.activities_during_day = []
         self.home_position = home_position
-       
+        self.sustainability_factor = 0 if self.company.policy == "policy0" else 0.3
+
         self.information_to_work = {
             type: get_path_information(
                 graph, self.home_position, company.location_position
@@ -96,8 +59,11 @@ class WorkerAgent(Agent):
         self.transport_chosen: str = self.choose_transport(self.distances_to_choose_transport)
         self.__setup_transport_chosen()
 
+    def modify_sustainable_factor(self, raise_value) -> None:
+        self.sustainability_factor *= raise_value
+
     def __setup_transport_chosen(self) -> None:
-        # Allows choosing a different transport at a given step in the simulation, even though it's not recommended
+        # Allows choosing a different transport at a given step in the simulation
 
         self.chosen_graph_name: str = self.transport_graph[self.transport_chosen]
         self.graph: nx.MultiDiGraph = self.model.graphs[self.chosen_graph_name]
@@ -165,6 +131,11 @@ class WorkerAgent(Agent):
             "walk": walking_probability(transport_distance_walk + additional_walk_distance_walk)
         }
 
+        # Sustainability bias
+        dynamic_weights["bike"] *= 1 + self.sustainability_factor*2
+        dynamic_weights["walk"] *= 1 + self.sustainability_factor*2
+        dynamic_weights["electric_scooter"] *= 1 + self.sustainability_factor
+
         # Normalize weights to form a proper probability distribution
         total_weight = sum(dynamic_weights.values())
         if total_weight > 0:
@@ -195,8 +166,6 @@ class WorkerAgent(Agent):
             # Do nothing while we wait for other agents to get to the desired locations
             # This flag is unset in self.switch_path()
             return
-
-        company_policy = self.company.policy
 
         if self.node_index == len(self.current_path) - 1:
             # On the last node, just finished path

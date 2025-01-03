@@ -6,7 +6,7 @@ import networkx as nx
 import osmnx as ox
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from worker_agent import WorkerAgent, WorkerType
+from worker_agent import WorkerAgent
 from company_agent import CompanyAgent
 
 from graph_utils import load_graphs, random_position_within_radius, merge_graphs, create_subgraph_within_radius
@@ -16,40 +16,33 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# CO2 is in grams
 CAR_CO2_VALUE = 250
 ESCOOTER_CO2_VALUE = 67
-DEFAULT_CO2_BUDGET = int(1e5)
+DEFAULT_CO2_BUDGET_PER_EMPLOYEE = int(4e3)   # Per employee
 
 class SustainabilityModel(Model):
     def __init__(
         self,
-        num_workers: int = 10,
-        worker_types_distribution: list = None,
+        num_workers_per_company: int = 10,
         companies: list = None,
         graphs: dict[str, nx.Graph] = None,
         center_position: tuple[float, float] = None,
         company_location_radius: int = 1000,
         agent_home_radius: int = 5000,
-        company_budget: int = DEFAULT_CO2_BUDGET,
+        base_company_budget: int = DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
         seed: Optional[int] = None,
     ):
-        print(f"Init model with {num_workers} workers")
+        print(f"Init model with {num_workers_per_company} workers per company")
         """
         Initialize the sustainability model with workers and companies.
-
-        Args:
-            worker_types_distribution: List of tuples with the distribution of worker types.
-            
-            For example:
-            worker_types_distribution = [0.2, environmentally_conscious], [0.5, cost_sensitive], [0.3, conservative]
-            companies = [(3, policy1), (2, policy2), (1, policy3)]
-            
         """
         super().__init__(seed=seed)
         self.num_companies = sum(company[0] for company in companies)
-        self.num_workers = num_workers
-        self.num_agents = self.num_workers + self.num_companies
-        self.company_budget = company_budget
+        self.num_workers_per_company = num_workers_per_company
+        self.num_agents = self.num_workers_per_company * self.num_companies + self.num_companies
+
+        self.base_company_budget = base_company_budget * self.num_workers_per_company
 
         self.graphs = graphs
         self.grid = NetworkGrid(
@@ -74,7 +67,7 @@ class SustainabilityModel(Model):
         )
 
         self.company_agents: list[CompanyAgent] = self.__init_companies(center_position, companies, company_location_radius)
-        self.worker_agents: list[WorkerAgent] = self.__init_agents(center_position, worker_types_distribution, agent_home_radius)
+        self.worker_agents: list[WorkerAgent] = self.__init_agents(center_position, agent_home_radius)
 
         self.path_switches = 0
         self.finished = False
@@ -89,24 +82,17 @@ class SustainabilityModel(Model):
         for company_count, company_policy in companies:
             for _ in range(company_count):
                 position = random_position_within_radius(self.random, center_position, possible_radius)
-                company = CompanyAgent(self, company_policy, position)
+                company = CompanyAgent(self, company_policy, position, self.base_company_budget)
                 self.schedule.add(company)
         return self.schedule.agents[: self.num_companies]
 
-    def __init_agents(self, center_position: tuple[float, float], worker_types_distribution, possible_radius):
-        probs, types = zip(*worker_types_distribution)
-        transports = ["car", "bicycle", "electric scooters", "walking"] #electric scooters = trotinete elétrica
-
-        for _ in range(self.num_workers):
-            worker_type = self.random.choices(types, weights=probs, k=1)[0] # Get worker type according to distribution
-            position = random_position_within_radius(self.random, center_position, possible_radius)
-            transport = self.random.choice(transports)      # Random preferred transport
-            company = self.random.choice(self.company_agents)    # Random company works in
-
-            # WorkerAgent Places itself on the grid at correct node
-            worker = WorkerAgent(self, worker_type, transport, company, position)
-            company.add_worker(worker)
-            self.schedule.add(worker)
+    def __init_agents(self, center_position: tuple[float, float], possible_radius):
+        for company in self.company_agents:
+            for _ in range(self.num_workers_per_company):
+                position = random_position_within_radius(self.random, center_position, possible_radius)
+                worker = WorkerAgent(self, company, position)
+                company.add_worker(worker)
+                self.schedule.add(worker)
 
         return self.agents[self.num_companies :]
 
@@ -145,7 +131,7 @@ class SustainabilityModel(Model):
             if isinstance(agent, WorkerAgent):
                 time_kms_Car = agent.kms_car[1] / 40 # kms / 40km/h = time in hours
                 time_kms_e_scooter = agent.kms_electric_scooter[1] * 12 # kms / 12km/h = time in hours
-                time_kms_walk = agent.kms_walk[1] /3.5 # kms / 3.5km/h = time in hours
+                time_kms_walk = agent.kms_walk[1] / 3.5 # kms / 3.5km/h = time in hours
                 time_kms_bycicle = agent.kms_bycicle[1] / 15 # kms / 15km/h = time in hours
                 final_dict[agent.unique_id] = {"Time spent driving car": time_kms_Car, "Time spent using an electrical scooter": time_kms_e_scooter, "Time spent walking:": time_kms_walk, "Time spent bycicling":  time_kms_bycicle}
         return final_dict
@@ -191,6 +177,10 @@ class SustainabilityModel(Model):
             if self.path_switches == 2:
                 self.finished = True
 
+            if self.path_switches % 2 == 0:
+                for company in self.company_agents:
+                    if company.policy != "policy0" and company.policy != "policy1":
+                        company.check_policies()
 
 def get_transport_usage_plot(model: SustainabilityModel) -> Figure:
     """
@@ -230,7 +220,7 @@ def get_co2_emissions_plot(model: SustainabilityModel) -> Figure:
     return fig
 
 def get_co2_budget_plot(model: SustainabilityModel) -> Figure:
-    budget = model.company_budget
+    budget = model.base_company_budget
     co2_avgs = model.data_collector.get_model_vars_dataframe()["CO2_avg_per_company"]
     timesteps = co2_avgs.index
     co2_mean = co2_avgs.apply(np.mean)
@@ -249,25 +239,20 @@ def get_co2_budget_plot(model: SustainabilityModel) -> Figure:
 
 # Running/Testing the model
 if __name__ == "__main__":
-    num_workers = 50
+    num_workers_per_company = 60
 
+    GRAPH_DISTANCE = 1000
     center = 41.1664384, -8.6016
-    graphs = load_graphs(center, distance=5000)
+    graphs = load_graphs(center, distance=GRAPH_DISTANCE)
 
-    worker_types_distribution = (
-        [0.2, WorkerType.ENVIROMENTALLY_CONSCIOUS],
-        [0.5, WorkerType.COST_SENSITIVE],
-        [0.3, WorkerType.CONSERVATIVE],
-    )
-    companies = [(3, "policy0"), (2, "policy0"), (1, "policy0")]
+    companies = [(4,"policy1"), (3, "policy0"), (2, "policy0"), (1, "policy1")]
     model = SustainabilityModel(
-        num_workers,
-        worker_types_distribution,
+        num_workers_per_company,
         companies,
         graphs,
         center_position=center,
-        company_location_radius=1000,
-        agent_home_radius=5000,
+        company_location_radius=GRAPH_DISTANCE // 5,
+        agent_home_radius=GRAPH_DISTANCE,
         seed=42
     )
 
@@ -287,10 +272,3 @@ if __name__ == "__main__":
 
     co2_budget_plot = get_co2_budget_plot(model)
     co2_budget_plot.savefig("co2_budget.png")
-
-
-    # results.to_csv("results.csv")
-    # Start plotting statistics
-    # Time Spent in transports per agent --> Table to display this information where each row represents an agent
-    # Number of times each transport was used overall --> the number of times each transport was used during the iterations
-    # Which transport was used per agent --> Table to display this information where each row represents an agent

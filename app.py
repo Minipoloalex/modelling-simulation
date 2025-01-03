@@ -2,12 +2,12 @@ import mesa
 print(f"Mesa version: {mesa.__version__}")
 
 import networkx as nx
-from mesa.visualization import SolaraViz, make_plot_component, make_space_component
+from mesa.visualization import SolaraViz
 from graph_utils import load_graphs
 import solara
 from matplotlib.figure import Figure
 
-from model import SustainabilityModel, WorkerType, get_transport_usage_plot, get_co2_emissions_plot, get_co2_budget_plot
+from model import SustainabilityModel, get_transport_usage_plot, get_co2_emissions_plot, get_co2_budget_plot
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -15,45 +15,41 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import solara
 import numpy as np
+from model import DEFAULT_CO2_BUDGET_PER_EMPLOYEE
 
-total_radius = 1000 # 1000m for developing, 5000m for actual simulations
+total_radius = 5000 # 1000m for developing, 5000m for actual simulations
 company_location_radius = total_radius // 5
 center = 41.1664384, -8.6016
 graphs = load_graphs(center, distance=total_radius)
-worker_types_distribution = (
-    [0.2, WorkerType.ENVIROMENTALLY_CONSCIOUS],
-    [0.5, WorkerType.COST_SENSITIVE],
-    [0.3, WorkerType.CONSERVATIVE],
-)
-companies = [(3, "policy0"), (2, "policy0"), (1, "policy0")]
-num_workers = 50
+companies = [(3, "policy0"), (2, "policy1"), (1, "policy2"), (1, "policy3"), (1, "policy4")]
+num_workers_per_company = 10
 
 model_params = {
-    "num_workers": {
+    "num_workers_per_company": {
         "type": "SliderInt",
-        "value": 50,
-        "label": "Number of workers",
-        "min": 5,
-        "max": 60,
+        "value": 10,
+        "label": "Number of workers per Company",
+        "min": 2,
+        "max": 20,
         "step": 1,
     },
-    "worker_types_distribution": worker_types_distribution,
     "companies": companies,
     "graphs": graphs,
     "center_position": center,
     "company_location_radius": company_location_radius,
     "agent_home_radius": total_radius,
+    "base_company_budget": DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
     "seed": 42,
 }
 
 model = SustainabilityModel(
-    num_workers=num_workers,
-    worker_types_distribution=worker_types_distribution,
+    num_workers_per_company=num_workers_per_company,
     companies=companies,
     graphs=graphs,
     center_position=center,
     company_location_radius=company_location_radius,
     agent_home_radius=total_radius,
+    base_company_budget=DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
     seed=42,
 )
 
