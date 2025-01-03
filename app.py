@@ -16,12 +16,19 @@ import matplotlib.pyplot as plt
 import solara
 import numpy as np
 from model import DEFAULT_CO2_BUDGET_PER_EMPLOYEE
+from company_agent import POSSIBLE_COMPANY_POLICIES
 
-total_radius = 5000 # 1000m for developing, 5000m for actual simulations
+total_radius = 1000     # 1000m for developing, 5000m for actual simulations
 company_location_radius = total_radius // 5
 center = 41.1664384, -8.6016
 graphs = load_graphs(center, distance=total_radius)
-companies = [(3, "policy0"), (2, "policy1"), (1, "policy2"), (1, "policy3"), (1, "policy4")]
+companies = {
+    "policy0": 3,
+    "policy1": 2,
+    "policy2": 1,
+    "policy3": 1,
+    "policy4": 1,
+}
 num_workers_per_company = 10
 
 model_params = {
@@ -33,7 +40,6 @@ model_params = {
         "max": 20,
         "step": 1,
     },
-    "companies": companies,
     "graphs": graphs,
     "center_position": center,
     "company_location_radius": company_location_radius,
@@ -42,15 +48,52 @@ model_params = {
     "seed": 42,
 }
 
-model = SustainabilityModel(
+for policy in POSSIBLE_COMPANY_POLICIES:
+    model_params.update(
+        {
+            policy: {
+                "type": "SliderInt",
+                "value": companies[policy],
+                "label": f"Number of companies with {policy}",
+                "min": 0,
+                "max": 5,
+                "step": 1,
+            }
+        }
+    )
+
+class InterfaceSustainabilityModel(SustainabilityModel):
+    def __init__(
+        self,
+        num_workers_per_company: int = 10,
+        graphs: dict[str, nx.Graph] = None,
+        center_position: tuple[float, float] = None,
+        company_location_radius: int = 1000,
+        agent_home_radius: int = 5000,
+        base_company_budget: int = DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
+        **kwargs,
+    ):
+        """This class is just used to make a constructor suitable for the interface sliders."""
+        for policy in POSSIBLE_COMPANY_POLICIES:
+            companies[policy] = kwargs.get(policy, companies[policy])
+        super().__init__(
+            num_workers_per_company=num_workers_per_company,
+            companies=companies,
+            graphs=graphs,
+            center_position=center_position,
+            company_location_radius=company_location_radius,
+            agent_home_radius=agent_home_radius,
+            base_company_budget=base_company_budget,
+            seed=42,
+        )
+
+model = InterfaceSustainabilityModel(
     num_workers_per_company=num_workers_per_company,
-    companies=companies,
     graphs=graphs,
     center_position=center,
     company_location_radius=company_location_radius,
     agent_home_radius=total_radius,
     base_company_budget=DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
-    seed=42,
 )
 
 class Debugger:

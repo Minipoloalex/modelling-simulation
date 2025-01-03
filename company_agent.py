@@ -1,6 +1,7 @@
 from mesa import Agent
 from graph_utils import get_closest_node
 
+POSSIBLE_COMPANY_POLICIES = [f"policy{x}" for x in range(5)]
 
 class CompanyAgent(Agent):
     def __init__(self, model, policy, location_position, company_budget):

@@ -25,7 +25,7 @@ class SustainabilityModel(Model):
     def __init__(
         self,
         num_workers_per_company: int = 10,
-        companies: list = None,
+        companies: dict[str, int] = None,
         graphs: dict[str, nx.Graph] = None,
         center_position: tuple[float, float] = None,
         company_location_radius: int = 1000,
@@ -33,12 +33,15 @@ class SustainabilityModel(Model):
         base_company_budget: int = DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
         seed: Optional[int] = None,
     ):
-        print(f"Init model with {num_workers_per_company} workers per company")
         """
         Initialize the sustainability model with workers and companies.
         """
         super().__init__(seed=seed)
-        self.num_companies = sum(company[0] for company in companies)
+        self.num_companies = sum(company_cnt for company_cnt in companies.values())
+        if self.num_companies == 0:
+            raise ValueError("There must be at least one company")
+        print(f"Init model with {num_workers_per_company} workers per company, with a total of {self.num_companies} companies")
+
         self.num_workers_per_company = num_workers_per_company
         self.num_agents = self.num_workers_per_company * self.num_companies + self.num_companies
 
@@ -78,8 +81,8 @@ class SustainabilityModel(Model):
             else create_subgraph_within_radius(self.grid.G, center_position, company_location_radius)
         )
 
-    def __init_companies(self, center_position: tuple[float, float], companies, possible_radius):
-        for company_count, company_policy in companies:
+    def __init_companies(self, center_position: tuple[float, float], companies: dict[str, int], possible_radius: int):
+        for company_policy, company_count in companies.items():
             for _ in range(company_count):
                 position = random_position_within_radius(self.random, center_position, possible_radius)
                 company = CompanyAgent(self, company_policy, position, self.base_company_budget)
