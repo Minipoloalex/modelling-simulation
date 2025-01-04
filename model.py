@@ -257,47 +257,54 @@ def get_co2_budget_per_company_type_plot(model: SustainabilityModel) -> Figure:
         .get_model_vars_dataframe()["CO2_avg_per_company_type"]
 
     timesteps = co2_emissions_per_company_type.index
-    policies = (
+    all_policies = (
         list(co2_emissions_per_company_type.iat[0].keys())
         if not co2_emissions_per_company_type.empty
         else []
     )
 
-    # https://matplotlib.org/stable/gallery/lines_bars_and_markers/linestyles.html
-    linestyles = ['-', '--', '-.', ':', (0, (5, 10))]
     colors = ["green", "red", "blue", "purple", "orange"]
-    if len(policies) > len(colors):
+    if len(all_policies) > len(colors):
         raise NotImplementedError(
             "Add a new color for the additional policy (company type)"
         )
 
-    fig, ax = plt.subplots()
-    for i, policy in enumerate(policies):
+    budgets = {}
+    for policy in all_policies:
         budget = obtain_budget(policy, model.base_company_budget)
-        policy_co2_emissions = co2_emissions_per_company_type.apply(
-            lambda co2: co2[policy]
-        )
-        ax.plot(
-            timesteps,
-            policy_co2_emissions,
-            label=policy,
-            color=colors[i],
-        )
-        
-        largest_co2 = (
-            policy_co2_emissions.iat[-1]
-            if not policy_co2_emissions.empty
-            else 0
-        )
+        budgets[budget] = budgets.get(budget, [])
+        budgets[budget].append(policy)
+
+    fig, ax = plt.subplots()
+    policy_nr = 0
+    for budget, policies in budgets.items():
+        budget_largest_co2 = 0
+        first_policy_nr = policy_nr
+        for policy in policies:
+            policy_co2_emissions = co2_emissions_per_company_type.apply(
+                lambda co2: co2[policy]
+            )
+            if not policy_co2_emissions.empty:
+                # Max over last CO2 emission (largest)
+                budget_largest_co2 = max(budget_largest_co2,
+                                         policy_co2_emissions.iat[-1])
+            ax.plot(
+                timesteps,
+                policy_co2_emissions,
+                label=policy,
+                color=colors[policy_nr],
+            )
+            policy_nr += 1
+
         plotted_budget = budget
-        label = f"Budget for {policy}"
+        label = f"Budget for " + ", ".join(policies)
         # Plot up until the budget bigger than last CO2 emissions
         # for this company type
-        while plotted_budget <= largest_co2 + budget:
+        while plotted_budget <= budget_largest_co2 + budget:
             ax.axhline(
                 y=plotted_budget,
-                color=colors[i],
-                linestyle=linestyles[i % len(linestyles)],
+                color=colors[first_policy_nr],
+                linestyle="--",
                 label=label,
             )
             plotted_budget += budget
