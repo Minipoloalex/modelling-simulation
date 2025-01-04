@@ -3,6 +3,13 @@ from graph_utils import get_closest_node
 
 POSSIBLE_COMPANY_POLICIES = [f"policy{x}" for x in range(5)]
 
+def obtain_budget(policy: str, company_budget: int) -> float:
+    if policy == "policy3":
+        return company_budget * 1.25
+    elif policy == "policy4":
+        return company_budget * 0.75
+    return company_budget
+
 class CompanyAgent(Agent):
     def __init__(self, model, policy: str, location_position: tuple[float, float], company_budget: int):
         super().__init__(model=model)
@@ -13,17 +20,10 @@ class CompanyAgent(Agent):
             type: get_closest_node(graph, location_position)[0]
             for type, graph in self.model.graphs.items()
         }
-        self.company_budget = self.obtain_budget(company_budget)
+        self.company_budget = obtain_budget(self.policy, company_budget)
 
         self.visualization_node = self.location_nodes[self.model.visualization_graph_type]
         self.model.grid.place_agent(self, self.visualization_node)
-
-    def obtain_budget(self, company_budget):
-        if self.policy == "policy3":
-            return company_budget * 1.25
-        elif self.policy == "policy4":
-            return company_budget * 0.75
-        return company_budget
 
     def add_worker(self, worker):
         self.workers.append(worker)

@@ -1,4 +1,4 @@
-from mesa import Agent, Model
+from mesa import Model
 from mesa.time import RandomActivation
 from mesa.space import NetworkGrid
 from mesa.datacollection import DataCollector
@@ -7,9 +7,14 @@ import osmnx as ox
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from worker_agent import WorkerAgent
-from company_agent import CompanyAgent
+from company_agent import CompanyAgent, obtain_budget
 
-from graph_utils import load_graphs, random_position_within_radius, merge_graphs, create_subgraph_within_radius
+from graph_utils import (
+    load_graphs,
+    random_position_within_radius,
+    merge_graphs,
+    create_subgraph_within_radius,
+)
 from typing import Optional
 import numpy as np
 
@@ -19,7 +24,7 @@ import seaborn as sns
 # CO2 is in grams
 CAR_CO2_VALUE = 250
 ESCOOTER_CO2_VALUE = 67
-DEFAULT_CO2_BUDGET_PER_EMPLOYEE = int(4e3)   # Per employee
+DEFAULT_CO2_BUDGET_PER_EMPLOYEE = int(5e2)   # Per employee
 
 class SustainabilityModel(Model):
     def __init__(
@@ -48,6 +53,8 @@ class SustainabilityModel(Model):
         self.company_budget_per_employee = company_budget_per_employee
         self.base_company_budget = self.company_budget_per_employee * self.num_workers_per_company
 
+        # TODO: merge graphs before passing to model
+        # so the interface does not have to wait in reload for this
         self.graphs = graphs
         self.grid = NetworkGrid(
             merge_graphs(
@@ -65,9 +72,9 @@ class SustainabilityModel(Model):
                 "CO2_emissions": self.calculate_CO2_emissions, 
                 "Time Spent in transports per agent": self.calculate_time_spent_in_transports,  # not plotted yet (should it be plotted?)
                 "CO2_avg_per_company": self.calculate_CO2_avg_per_company,
+                "CO2_avg_per_company_type": self.calculate_CO2_avg_per_company_type,
                 # Travelled distance ?
             },
-            agent_reporters={"SustainableChoice": "sustainable_choice"},
         )
 
         self.company_agents: list[CompanyAgent] = self.__init_companies(center_position, companies, company_location_radius)
@@ -167,6 +174,21 @@ class SustainabilityModel(Model):
             companies_co2.append(company_co2_avg)
         return companies_co2
 
+    def calculate_CO2_avg_per_company_type(self):
+        companies_co2 = {}
+        for company in self.company_agents:
+            policy = company.policy
+            company_co2 = 0
+            for agent in company.workers:
+                company_co2 += self.get_total_co2(agent)
+
+            curr_sum, curr_cnt = companies_co2.get(policy, (0, 0))
+            companies_co2[policy] = (curr_sum + company_co2, curr_cnt + 1)
+
+        for policy, (co2_sum, cnt_companies) in companies_co2.items():
+            companies_co2[policy] = co2_sum / cnt_companies
+        return companies_co2
+
     def step(self):
         self.schedule.step()
         self.data_collector.collect(self)
@@ -202,6 +224,7 @@ def get_transport_usage_plot(model: SustainabilityModel) -> Figure:
     ax.set_title("Transport Usage Frequency")
     ax.set_xlabel("Transport Method")
     ax.set_ylabel("Number of People")
+    fig.tight_layout()
     return fig
 
 def get_co2_emissions_plot(model: SustainabilityModel) -> Figure:
@@ -214,10 +237,73 @@ def get_co2_emissions_plot(model: SustainabilityModel) -> Figure:
     fig, ax = plt.subplots()
 
     for transport in transports:
-        ax.plot(timesteps, co2_emissions.apply(lambda co2: co2.get(transport, 0)), label=transport, linestyle="dashed")
+        ax.plot(
+            timesteps,
+            co2_emissions.apply(lambda co2: co2.get(transport, 0)),
+            label=transport,
+            linestyle="dashed",
+        )
     ax.plot(timesteps, total_co2_emissions, label="Total")
 
     ax.set_title("Total CO2 Emissions over time")
+    ax.set_xlabel("Time Step")
+    ax.set_ylabel("CO2 Emissions")
+    ax.legend()
+    fig.tight_layout()
+    return fig
+
+def get_co2_budget_per_company_type_plot(model: SustainabilityModel) -> Figure:
+    co2_emissions_per_company_type = model.data_collector \
+        .get_model_vars_dataframe()["CO2_avg_per_company_type"]
+
+    timesteps = co2_emissions_per_company_type.index
+    policies = (
+        list(co2_emissions_per_company_type.iat[0].keys())
+        if not co2_emissions_per_company_type.empty
+        else []
+    )
+
+    # https://matplotlib.org/stable/gallery/lines_bars_and_markers/linestyles.html
+    linestyles = ['-', '--', '-.', ':', (0, (5, 10))]
+    colors = ["green", "red", "blue", "purple", "orange"]
+    if len(policies) > len(colors):
+        raise NotImplementedError(
+            "Add a new color for the additional policy (company type)"
+        )
+
+    fig, ax = plt.subplots()
+    for i, policy in enumerate(policies):
+        budget = obtain_budget(policy, model.base_company_budget)
+        policy_co2_emissions = co2_emissions_per_company_type.apply(
+            lambda co2: co2[policy]
+        )
+        ax.plot(
+            timesteps,
+            policy_co2_emissions,
+            label=policy,
+            color=colors[i],
+        )
+        
+        largest_co2 = (
+            policy_co2_emissions.iat[-1]
+            if not policy_co2_emissions.empty
+            else 0
+        )
+        plotted_budget = budget
+        label = f"Budget for {policy}"
+        # Plot up until the budget bigger than last CO2 emissions
+        # for this company type
+        while plotted_budget <= largest_co2 + budget:
+            ax.axhline(
+                y=plotted_budget,
+                color=colors[i],
+                linestyle=linestyles[i % len(linestyles)],
+                label=label,
+            )
+            plotted_budget += budget
+            label = None    # Only label the first horizontal line
+
+    ax.set_title("Average CO2 emissions per company type (policy)")
     ax.set_xlabel("Time Step")
     ax.set_ylabel("CO2 Emissions")
     ax.legend()
@@ -234,7 +320,19 @@ def get_co2_budget_plot(model: SustainabilityModel) -> Figure:
     fig, ax = plt.subplots()
     ax.plot(timesteps, co2_mean, label="Mean CO2 Emissions", color="blue")
     ax.fill_between(timesteps, co2_mean - co2_std, co2_mean + co2_std, color="blue", alpha=0.2, label="Std Dev")
-    ax.axhline(y=budget, color="red", linestyle="--", label="Budget Per Day")
+
+    largest_co2_mean = (
+        co2_mean.iat[-1]
+        if not co2_avgs.empty
+        else 0
+    )
+    plotted_budget = budget
+    label = "Base Budget Per Employee"
+    while plotted_budget <= largest_co2_mean + budget:
+        ax.axhline(y=plotted_budget, color="red", linestyle="--", label=label)
+        plotted_budget += budget
+        label = None    # Only label the first horizontal line
+
     ax.set_title("CO2 Emissions Per Employee Over Time")
     ax.set_xlabel("Time Step")
     ax.set_ylabel("CO2 Emissions")
@@ -245,13 +343,19 @@ def get_co2_budget_plot(model: SustainabilityModel) -> Figure:
 
 # Running/Testing the model
 if __name__ == "__main__":
-    num_workers_per_company = 60
+    num_workers_per_company = 10
 
     GRAPH_DISTANCE = 1000
     center = 41.1664384, -8.6016
     graphs = load_graphs(center, distance_meters=GRAPH_DISTANCE)
 
-    companies = [(4,"policy1"), (3, "policy0"), (2, "policy0"), (1, "policy1")]
+    companies = {
+        "policy0": 3,
+        "policy1": 2,
+        "policy2": 4,
+        "policy3": 2,
+        "policy4": 1,
+    }
     model = SustainabilityModel(
         num_workers_per_company,
         companies,
@@ -269,6 +373,7 @@ if __name__ == "__main__":
     # Access the collected data for analysis
     results = model.data_collector.get_model_vars_dataframe()
     print(results)
+    print(results["CO2_avg_per_company_type"])
 
     transport_usage_plot = get_transport_usage_plot(model)
     transport_usage_plot.savefig("transport_usage.png")
@@ -278,3 +383,6 @@ if __name__ == "__main__":
 
     co2_budget_plot = get_co2_budget_plot(model)
     co2_budget_plot.savefig("co2_budget.png")
+
+    co2_budget_policy_type_plot = get_co2_budget_per_company_type_plot(model)
+    co2_budget_policy_type_plot.savefig("co2_budget_policy_type.png")

@@ -1,6 +1,5 @@
 from mesa import Agent
 from enum import Enum
-import random
 import math
 from mesa.space import NetworkGrid
 import networkx as nx
@@ -141,7 +140,7 @@ class WorkerAgent(Agent):
         else:
             normalized_weights = {key: 0 for key in dynamic_weights}
 
-        transport_chosen = random.choices(
+        transport_chosen = self.random.choices(
             list(normalized_weights.keys()),
             weights=list(normalized_weights.values()),
             k=1,

@@ -1,16 +1,14 @@
 import osmnx as ox
-import networkx as nx
 import osmnx.distance as distance
 import osmnx.routing as routing
 import osmnx.truncate as truncate
+from osmnx.utils_geo import bbox_from_point
+import networkx as nx
 import math
 import numpy as np
-from mesa.space import NetworkGrid
-import random
 from collections import namedtuple
-from osmnx.utils_geo import bbox_from_point
 
-# ox.settings.log_console = True
+# ox.settings.log_console = True    # Enable OSMnx debugging
 
 def load_graphs(center_point, *, distance_meters=5000) -> dict[str, nx.Graph]:
     drive_graph = ox.graph_from_point(
