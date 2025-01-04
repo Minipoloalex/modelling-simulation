@@ -21,7 +21,7 @@ from company_agent import POSSIBLE_COMPANY_POLICIES
 total_radius = 1000     # 1000m for developing, 5000m for actual simulations
 company_location_radius = total_radius // 5
 center = 41.1664384, -8.6016
-graphs = load_graphs(center, distance=total_radius)
+graphs = load_graphs(center, distance_meters=total_radius)
 companies = {
     "policy0": 3,
     "policy1": 2,
@@ -44,7 +44,7 @@ model_params = {
     "center_position": center,
     "company_location_radius": company_location_radius,
     "agent_home_radius": total_radius,
-    "base_company_budget": DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
+    "company_budget_per_employee": DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
     "seed": 42,
 }
 
@@ -70,7 +70,7 @@ class InterfaceSustainabilityModel(SustainabilityModel):
         center_position: tuple[float, float] = None,
         company_location_radius: int = 1000,
         agent_home_radius: int = 5000,
-        base_company_budget: int = DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
+        company_budget_per_employee: int = DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
         **kwargs,
     ):
         """This class is just used to make a constructor suitable for the interface sliders."""
@@ -83,7 +83,7 @@ class InterfaceSustainabilityModel(SustainabilityModel):
             center_position=center_position,
             company_location_radius=company_location_radius,
             agent_home_radius=agent_home_radius,
-            base_company_budget=base_company_budget,
+            company_budget_per_employee=company_budget_per_employee,
             seed=42,
         )
 
@@ -93,7 +93,7 @@ model = InterfaceSustainabilityModel(
     center_position=center,
     company_location_radius=company_location_radius,
     agent_home_radius=total_radius,
-    base_company_budget=DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
+    company_budget_per_employee=DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
 )
 
 class Debugger:

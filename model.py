@@ -30,7 +30,7 @@ class SustainabilityModel(Model):
         center_position: tuple[float, float] = None,
         company_location_radius: int = 1000,
         agent_home_radius: int = 5000,
-        base_company_budget: int = DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
+        company_budget_per_employee: int = DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
         seed: Optional[int] = None,
     ):
         """
@@ -45,7 +45,8 @@ class SustainabilityModel(Model):
         self.num_workers_per_company = num_workers_per_company
         self.num_agents = self.num_workers_per_company * self.num_companies + self.num_companies
 
-        self.base_company_budget = base_company_budget * self.num_workers_per_company
+        self.company_budget_per_employee = company_budget_per_employee
+        self.base_company_budget = self.company_budget_per_employee * self.num_workers_per_company
 
         self.graphs = graphs
         self.grid = NetworkGrid(
@@ -78,7 +79,9 @@ class SustainabilityModel(Model):
         self.visualization_graph = (
             self.grid.G
             if agent_home_radius <= 1000
-            else create_subgraph_within_radius(self.grid.G, center_position, company_location_radius)
+            else create_subgraph_within_radius(
+                self.grid.G, center_position, distance_meters=company_location_radius
+            )
         )
 
     def __init_companies(self, center_position: tuple[float, float], companies: dict[str, int], possible_radius: int):
@@ -104,8 +107,8 @@ class SustainabilityModel(Model):
             agent.unique_id: agent.pos for agent in self.worker_agents
         }
 
-    def calculate_sustainable_choices(self):
-        return sum(agent.kms_bycicle[0]+agent.kms_walk[0] for agent in self.schedule.agents if isinstance(agent, WorkerAgent))
+    # def calculate_sustainable_choices(self):
+    #     return sum(agent.kms_bycicle[0]+agent.kms_walk[0] for agent in self.schedule.agents if isinstance(agent, WorkerAgent))
 
     def calculate_times_each_transport_was_used(self):
         transports = ["car", "bike", "electric_scooter", "walk"]
@@ -151,7 +154,7 @@ class SustainabilityModel(Model):
 
         return {
             "car": CO2_kms_car,
-            "eletric_scooter": CO2_kms_e_scooter,
+            "electric_scooter": CO2_kms_e_scooter,
         }
 
     def calculate_CO2_avg_per_company(self):
@@ -160,7 +163,6 @@ class SustainabilityModel(Model):
             company_co2 = 0
             for agent in company.workers:
                 company_co2 += self.get_total_co2(agent)
-            
             company_co2_avg = company_co2 / len(company.workers) if len(company.workers) != 0 else 0
             companies_co2.append(company_co2_avg)
         return companies_co2
@@ -203,7 +205,7 @@ def get_transport_usage_plot(model: SustainabilityModel) -> Figure:
     return fig
 
 def get_co2_emissions_plot(model: SustainabilityModel) -> Figure:
-    transports = ["car", "bike", "walk", "eletric_scooter"]
+    transports = ["car", "bike", "walk", "electric_scooter"]
     co2_emissions = model.data_collector.get_model_vars_dataframe()["CO2_emissions"]
     timesteps = co2_emissions.index
 
@@ -215,7 +217,7 @@ def get_co2_emissions_plot(model: SustainabilityModel) -> Figure:
         ax.plot(timesteps, co2_emissions.apply(lambda co2: co2.get(transport, 0)), label=transport, linestyle="dashed")
     ax.plot(timesteps, total_co2_emissions, label="Total")
 
-    ax.set_title("CO2 Emissions over time")
+    ax.set_title("Total CO2 Emissions over time")
     ax.set_xlabel("Time Step")
     ax.set_ylabel("CO2 Emissions")
     ax.legend()
@@ -223,7 +225,7 @@ def get_co2_emissions_plot(model: SustainabilityModel) -> Figure:
     return fig
 
 def get_co2_budget_plot(model: SustainabilityModel) -> Figure:
-    budget = model.base_company_budget
+    budget = model.company_budget_per_employee
     co2_avgs = model.data_collector.get_model_vars_dataframe()["CO2_avg_per_company"]
     timesteps = co2_avgs.index
     co2_mean = co2_avgs.apply(np.mean)
@@ -237,6 +239,7 @@ def get_co2_budget_plot(model: SustainabilityModel) -> Figure:
     ax.set_xlabel("Time Step")
     ax.set_ylabel("CO2 Emissions")
     ax.legend()
+    fig.tight_layout()
     return fig
 
 
@@ -246,7 +249,7 @@ if __name__ == "__main__":
 
     GRAPH_DISTANCE = 1000
     center = 41.1664384, -8.6016
-    graphs = load_graphs(center, distance=GRAPH_DISTANCE)
+    graphs = load_graphs(center, distance_meters=GRAPH_DISTANCE)
 
     companies = [(4,"policy1"), (3, "policy0"), (2, "policy0"), (1, "policy1")]
     model = SustainabilityModel(

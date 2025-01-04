@@ -4,16 +4,15 @@ from graph_utils import get_closest_node
 POSSIBLE_COMPANY_POLICIES = [f"policy{x}" for x in range(5)]
 
 class CompanyAgent(Agent):
-    def __init__(self, model, policy, location_position, company_budget):
+    def __init__(self, model, policy: str, location_position: tuple[float, float], company_budget: int):
         super().__init__(model=model)
         self.location_position = location_position
         self.workers = []
-        self.policy = policy        # Policy for this company (0 = no policy, 1 = full policy)
-        self.location_nodes = {
+        self.policy = policy
+        self.location_nodes: dict[str, int] = {
             type: get_closest_node(graph, location_position)[0]
             for type, graph in self.model.graphs.items()
         }
-        self.total_cots_of_CO2_Kg = 0 # sum of all cost of pollution (CO2 Kg)
         self.company_budget = self.obtain_budget(company_budget)
 
         self.visualization_node = self.location_nodes[self.model.visualization_graph_type]
@@ -43,11 +42,17 @@ class CompanyAgent(Agent):
             0: 1.20,
             -5: 0.95,
             -10: 1.00,
-            -100: 0.90  
+            -100: 0.90,
         }
 
         # Find the factor in the table
-        factor = factor_map.get(next((key for key in sorted(factor_map, reverse=True) if budget_diff_percent >= key), -100))
+        factor = factor_map[
+            next(
+                (key for key in sorted(factor_map.keys(), reverse=True) if budget_diff_percent >= key),
+                -100,
+            )
+        ]
+        print(f"Budget diff %: {budget_diff_percent}, Factor {factor}")
 
         for agent in self.workers:
             agent.modify_sustainable_factor(factor)

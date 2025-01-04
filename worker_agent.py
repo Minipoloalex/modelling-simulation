@@ -4,19 +4,17 @@ import random
 import math
 from mesa.space import NetworkGrid
 import networkx as nx
-from graph_utils import get_path_information, get_closest_node
+from graph_utils import get_path_information, calculate_distance
 from company_agent import CompanyAgent
 
 
 class WorkerAgent(Agent):
-    transport_speed_kmh = {"bike": 10, "car": 60, "walk": 3, "electric_scooter": 15}
     transport_graph = {
         "bike": "bike",
         "walk": "walk",
         "car": "drive",
         "electric_scooter": "bike",
     }
-    walk_speed_kmh = transport_speed_kmh["walk"]
     def __init__(
         self,
         model,
@@ -157,10 +155,6 @@ class WorkerAgent(Agent):
         additional_walk_distance = self.distances[self.current_path_name][1]
         self.kms_walk = (self.kms_walk[0], self.kms_walk[1] + additional_walk_distance)
 
-    def calculate_distance(self, start_node, end_node) -> float:
-        edges = self.graph[start_node][end_node]
-        return min(edge["length"] for edge in edges.values())
-
     def step(self):
         if self.partial_finish:
             # Do nothing while we wait for other agents to get to the desired locations
@@ -176,7 +170,7 @@ class WorkerAgent(Agent):
         self.node_index += 1
         previous_node = self.current_path[self.node_index - 1]
         current_node = self.current_path[self.node_index]
-        distance_travelled = self.calculate_distance(previous_node, current_node)
+        distance_travelled = calculate_distance(self.graph, previous_node, current_node)
 
         if self.transport_chosen == "walk":
             self.kms_walk = (self.kms_walk[0] + 1, self.kms_walk[1] + distance_travelled)
