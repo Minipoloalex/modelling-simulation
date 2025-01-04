@@ -1,30 +1,28 @@
 import osmnx as ox
-import networkx as nx
 import osmnx.distance as distance
 import osmnx.routing as routing
 import osmnx.truncate as truncate
+from osmnx.utils_geo import bbox_from_point
+import networkx as nx
 import math
 import numpy as np
-from mesa.space import NetworkGrid
-import random
 from collections import namedtuple
-from osmnx.utils_geo import bbox_from_point
 
-# ox.settings.log_console = True
+# ox.settings.log_console = True    # Enable OSMnx debugging
 
-def load_graphs(center_point, distance=5000) -> dict[str, nx.Graph]:
+def load_graphs(center_point, *, distance_meters=5000) -> dict[str, nx.Graph]:
     drive_graph = ox.graph_from_point(
-        center_point=center_point, dist=distance, network_type="drive"
+        center_point=center_point, dist=distance_meters, network_type="drive"
     )
     drive_graph = truncate.largest_component(drive_graph, strongly=True)
 
     bike_graph = ox.graph_from_point(
-        center_point=center_point, dist=distance, network_type="bike"
+        center_point=center_point, dist=distance_meters, network_type="bike"
     )
     bike_graph = truncate.largest_component(bike_graph, strongly=True)
 
     walk_graph = ox.graph_from_point(
-        center_point=center_point, dist=distance, network_type="walk"
+        center_point=center_point, dist=distance_meters, network_type="walk"
     )
     walk_graph = truncate.largest_component(walk_graph, strongly=True)
 
@@ -35,29 +33,32 @@ def load_graphs(center_point, distance=5000) -> dict[str, nx.Graph]:
     }
 
 
-def get_closest_node(G, point) -> tuple[any, float]:
+def get_closest_node(G, point) -> tuple[int, float]:
     """Get the node closest to the given point"""
     closest_node, dist = distance.nearest_nodes(
         G, X=point[1], Y=point[0], return_dist=True
     )
-    return closest_node, dist
+    return closest_node, _convert_m_to_km(dist)
 
+def calculate_distance(graph: nx.MultiDiGraph, start_node: int, end_node: int) -> float:
+    edges = graph[start_node][end_node]
+    return _convert_m_to_km(min(edge["length"] for edge in edges.values()))
 
 def get_shortest_path(graph: nx.Graph, source_id: int, target_id: int) -> list[int]:
     return routing.shortest_path(graph, source_id, target_id, weight="length")
 
-def create_subgraph_within_radius(G: nx.MultiDiGraph, center_position, distance):
+def create_subgraph_within_radius(G: nx.MultiDiGraph, center_position, *, distance_meters: int):
     """
     Create a subgraph with only nodes within the specified distance from the center position.
     """
-    bbox = bbox_from_point(center_position, distance)
+    bbox = bbox_from_point(center_position, distance_meters)
     subgraph = truncate.truncate_graph_bbox(G, bbox, truncate_by_edge=False)
     return subgraph
 
-def convert_m_to_km(distance: float) -> float:
+def _convert_m_to_km(distance: float) -> float:
     return distance / 1000
 
-def _get_path_distance(graph: nx.Graph, path: list[int]) -> float:
+def _get_path_distance_meters(graph: nx.Graph, path: list[int]) -> float:
     total_distance = 0.0
 
     # Iterate over consecutive pairs in the path
@@ -78,8 +79,8 @@ def get_path_information(
     target_node, target_distance = get_closest_node(graph, target_pos)
     path = get_shortest_path(graph, source_node, target_node)
 
-    transport_distance = convert_m_to_km(_get_path_distance(graph, path))
-    additional_distance = convert_m_to_km(source_distance + target_distance)
+    transport_distance = _convert_m_to_km(_get_path_distance_meters(graph, path))
+    additional_distance = _convert_m_to_km(source_distance + target_distance)
 
     return PathInformation(path, transport_distance, additional_distance)
 

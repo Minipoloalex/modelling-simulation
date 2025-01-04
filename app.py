@@ -1,27 +1,38 @@
 import mesa
 print(f"Mesa version: {mesa.__version__}")
 
-import networkx as nx
-from mesa.visualization import SolaraViz
-from graph_utils import load_graphs
 import solara
-from matplotlib.figure import Figure
+from mesa.visualization import SolaraViz
 
-from model import SustainabilityModel, get_transport_usage_plot, get_co2_emissions_plot, get_co2_budget_plot
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.figure import Figure
 
 import networkx as nx
-import matplotlib.pyplot as plt
-import solara
-import numpy as np
-from model import DEFAULT_CO2_BUDGET_PER_EMPLOYEE
 
-total_radius = 5000 # 1000m for developing, 5000m for actual simulations
+from graph_utils import load_graphs
+from model import (
+    SustainabilityModel,
+    get_transport_usage_plot,
+    get_co2_emissions_plot,
+    get_co2_budget_plot,
+    get_co2_budget_per_company_type_plot,
+    DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
+)
+from company_agent import POSSIBLE_COMPANY_POLICIES
+
+total_radius = 5000     # 1000m for developing, 5000m for actual simulations
 company_location_radius = total_radius // 5
 center = 41.1664384, -8.6016
-graphs = load_graphs(center, distance=total_radius)
-companies = [(3, "policy0"), (2, "policy1"), (1, "policy2"), (1, "policy3"), (1, "policy4")]
+graphs = load_graphs(center, distance_meters=total_radius)
+companies = {
+    "policy0": 3,
+    "policy1": 2,
+    "policy2": 1,
+    "policy3": 1,
+    "policy4": 1,
+}
 num_workers_per_company = 10
 
 model_params = {
@@ -33,24 +44,60 @@ model_params = {
         "max": 20,
         "step": 1,
     },
-    "companies": companies,
     "graphs": graphs,
     "center_position": center,
     "company_location_radius": company_location_radius,
     "agent_home_radius": total_radius,
-    "base_company_budget": DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
+    "company_budget_per_employee": DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
     "seed": 42,
 }
 
-model = SustainabilityModel(
+for policy in POSSIBLE_COMPANY_POLICIES:
+    model_params.update(
+        {
+            policy: {
+                "type": "SliderInt",
+                "value": companies[policy],
+                "label": f"Number of companies with {policy}",
+                "min": 0,
+                "max": 5,
+                "step": 1,
+            }
+        }
+    )
+
+class InterfaceSustainabilityModel(SustainabilityModel):
+    def __init__(
+        self,
+        num_workers_per_company: int = 10,
+        graphs: dict[str, nx.Graph] = None,
+        center_position: tuple[float, float] = None,
+        company_location_radius: int = 1000,
+        agent_home_radius: int = 5000,
+        company_budget_per_employee: int = DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
+        **kwargs,
+    ):
+        """This class is just used to make a constructor suitable for the interface sliders."""
+        for policy in POSSIBLE_COMPANY_POLICIES:
+            companies[policy] = kwargs.get(policy, companies[policy])
+        super().__init__(
+            num_workers_per_company=num_workers_per_company,
+            companies=companies,
+            graphs=graphs,
+            center_position=center_position,
+            company_location_radius=company_location_radius,
+            agent_home_radius=agent_home_radius,
+            company_budget_per_employee=company_budget_per_employee,
+            seed=42,
+        )
+
+model = InterfaceSustainabilityModel(
     num_workers_per_company=num_workers_per_company,
-    companies=companies,
     graphs=graphs,
     center_position=center,
     company_location_radius=company_location_radius,
     agent_home_radius=total_radius,
-    base_company_budget=DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
-    seed=42,
+    company_budget_per_employee=DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
 )
 
 class Debugger:
@@ -64,6 +111,15 @@ class Debugger:
     def debug_plot(model):
         print(f"{Debugger.ip}: Rendering plot")
         Debugger.ip += 1
+
+
+def convert_to_solara_figure(mpl_fig: Figure):
+    solara_figure = solara.FigureMatplotlib(mpl_fig)
+
+    # Close the matplotlib figure explicitly (otherwise unused figures would still be open)
+    plt.close(mpl_fig)
+
+    return solara_figure
 
 def make_graph(model: SustainabilityModel):
     Debugger.debug_graph_rendering(model)
@@ -118,37 +174,28 @@ def make_graph(model: SustainabilityModel):
         s=30,
         c="blue",
     )
-    solara_figure = solara.FigureMatplotlib(fig)
-
-    # Close the matplotlib figure explicitly (otherwise unused figures would still be open)
-    plt.close(fig)
-
-    return solara_figure
+    return convert_to_solara_figure(fig)
 
 def make_transport_usage_plot(model: SustainabilityModel):
-    fig = get_transport_usage_plot(model)
-
-    solara_figure = solara.FigureMatplotlib(fig)
-    plt.close(fig)
-
-    return solara_figure
+    return convert_to_solara_figure(
+        get_transport_usage_plot(model)
+    )
 
 def make_co2_emissions_plot(model: SustainabilityModel):
     Debugger.debug_plot(model)
-    fig = get_co2_emissions_plot(model)
-
-    solara_figure = solara.FigureMatplotlib(fig)
-    plt.close(fig)
-
-    return solara_figure
+    return convert_to_solara_figure(
+        get_co2_emissions_plot(model)
+    )
 
 def make_co2_budget_plot(model: SustainabilityModel):
-    fig = get_co2_budget_plot(model)
+    return convert_to_solara_figure(
+        get_co2_budget_plot(model)
+    )
 
-    solara_figure = solara.FigureMatplotlib(fig)
-    plt.close(fig)
-
-    return solara_figure
+def make_co2_budget_per_company_type_plot(model: SustainabilityModel):
+    return convert_to_solara_figure(
+        get_co2_budget_per_company_type_plot(model)
+    )
 
 @solara.component
 def Page():
@@ -160,6 +207,7 @@ def Page():
             make_co2_emissions_plot,
             make_transport_usage_plot,
             make_co2_budget_plot,
+            make_co2_budget_per_company_type_plot,
         ],
         model_params=model_params,
         name="Sustainability Model",
