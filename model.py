@@ -32,6 +32,7 @@ class SustainabilityModel(Model):
         num_workers_per_company: int = 10,
         companies: dict[str, int] = None,
         graphs: dict[str, nx.Graph] = None,
+        merged_graph: nx.Graph = None,
         center_position: tuple[float, float] = None,
         company_location_radius: int = 1000,
         agent_home_radius: int = 5000,
@@ -53,15 +54,8 @@ class SustainabilityModel(Model):
         self.company_budget_per_employee = company_budget_per_employee
         self.base_company_budget = self.company_budget_per_employee * self.num_workers_per_company
 
-        # TODO: merge graphs before passing to model
-        # so the interface does not have to wait in reload for this
         self.graphs = graphs
-        self.grid = NetworkGrid(
-            merge_graphs(
-                graph_names=sorted(self.graphs.keys()),
-                graphs=self.graphs
-            )
-        )
+        self.grid = NetworkGrid(merged_graph)
 
         # Use one of the graphs for company location visualization
         self.visualization_graph_type = sorted(self.graphs.keys())[0]
@@ -209,7 +203,7 @@ class SustainabilityModel(Model):
                     if company.policy != "policy0" and company.policy != "policy1":
                         company.check_policies()
 
-def get_transport_usage_plot(model: SustainabilityModel) -> Figure:
+def get_transport_usage_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
     """
     Generates a bar plot to visualize the times each transport method was used.
 
@@ -219,7 +213,7 @@ def get_transport_usage_plot(model: SustainabilityModel) -> Figure:
     results = model.calculate_times_each_transport_was_used()
 
     # Create a bar plot
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     ax.bar(results.keys(), results.values())
     ax.set_title("Transport Usage Frequency")
     ax.set_xlabel("Transport Method")
@@ -227,14 +221,14 @@ def get_transport_usage_plot(model: SustainabilityModel) -> Figure:
     fig.tight_layout()
     return fig
 
-def get_co2_emissions_plot(model: SustainabilityModel) -> Figure:
+def get_co2_emissions_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
     transports = ["car", "bike", "walk", "electric_scooter"]
     co2_emissions = model.data_collector.get_model_vars_dataframe()["CO2_emissions"]
     timesteps = co2_emissions.index
 
     total_co2_emissions = co2_emissions.apply(lambda co2: sum(co2.values()))
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
 
     for transport in transports:
         ax.plot(
@@ -252,7 +246,7 @@ def get_co2_emissions_plot(model: SustainabilityModel) -> Figure:
     fig.tight_layout()
     return fig
 
-def get_co2_budget_per_company_type_plot(model: SustainabilityModel) -> Figure:
+def get_co2_budget_per_company_type_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
     co2_emissions_per_company_type = model.data_collector \
         .get_model_vars_dataframe()["CO2_avg_per_company_type"]
 
@@ -275,7 +269,7 @@ def get_co2_budget_per_company_type_plot(model: SustainabilityModel) -> Figure:
         budgets[budget] = budgets.get(budget, [])
         budgets[budget].append(policy)
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     policy_nr = 0
     for budget, policies in budgets.items():
         budget_largest_co2 = 0
@@ -317,14 +311,14 @@ def get_co2_budget_per_company_type_plot(model: SustainabilityModel) -> Figure:
     fig.tight_layout()
     return fig
 
-def get_co2_budget_plot(model: SustainabilityModel) -> Figure:
+def get_co2_budget_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
     budget = model.company_budget_per_employee
     co2_avgs = model.data_collector.get_model_vars_dataframe()["CO2_avg_per_company"]
     timesteps = co2_avgs.index
     co2_mean = co2_avgs.apply(np.mean)
     co2_std = co2_avgs.apply(np.std)
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=figsize)
     ax.plot(timesteps, co2_mean, label="Mean CO2 Emissions", color="blue")
     ax.fill_between(timesteps, co2_mean - co2_std, co2_mean + co2_std, color="blue", alpha=0.2, label="Std Dev")
 
@@ -355,7 +349,7 @@ if __name__ == "__main__":
     GRAPH_DISTANCE = 1000
     center = 41.1664384, -8.6016
     graphs = load_graphs(center, distance_meters=GRAPH_DISTANCE)
-
+    merged_graph = merge_graphs(graphs)
     companies = {
         "policy0": 3,
         "policy1": 2,
@@ -367,6 +361,7 @@ if __name__ == "__main__":
         num_workers_per_company,
         companies,
         graphs,
+        merged_graph,
         center_position=center,
         company_location_radius=GRAPH_DISTANCE // 5,
         agent_home_radius=GRAPH_DISTANCE,

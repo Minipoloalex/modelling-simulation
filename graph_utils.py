@@ -117,7 +117,8 @@ def random_position_within_radius(rng, center_position, radius):
     return new_lat, new_lon
 
 
-def merge_graphs(graph_names: list[str], graphs: dict[str, nx.MultiDiGraph]) -> nx.MultiDiGraph:
+def merge_graphs(graphs: dict[str, nx.MultiDiGraph]) -> nx.MultiDiGraph:
+    graph_names = sorted(graphs.keys())
     merged_graph = graphs[graph_names[0]].copy()
     for grid_name in graph_names[1:]:
         graph = graphs[grid_name]
