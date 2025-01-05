@@ -11,7 +11,7 @@ from matplotlib.figure import Figure
 
 import networkx as nx
 
-from graph_utils import load_graphs
+from graph_utils import load_graphs, merge_graphs
 from model import (
     SustainabilityModel,
     get_transport_usage_plot,
@@ -26,6 +26,7 @@ total_radius = 5000     # 1000m for developing, 5000m for actual simulations
 company_location_radius = total_radius // 5
 center = 41.1664384, -8.6016
 graphs = load_graphs(center, distance_meters=total_radius)
+merged_graph = merge_graphs(graphs)
 companies = {
     "policy0": 3,
     "policy1": 2,
@@ -45,6 +46,7 @@ model_params = {
         "step": 1,
     },
     "graphs": graphs,
+    "merged_graph": merged_graph,
     "center_position": center,
     "company_location_radius": company_location_radius,
     "agent_home_radius": total_radius,
@@ -71,6 +73,7 @@ class InterfaceSustainabilityModel(SustainabilityModel):
         self,
         num_workers_per_company: int = 10,
         graphs: dict[str, nx.Graph] = None,
+        merged_graph: nx.Graph = None,
         center_position: tuple[float, float] = None,
         company_location_radius: int = 1000,
         agent_home_radius: int = 5000,
@@ -81,37 +84,26 @@ class InterfaceSustainabilityModel(SustainabilityModel):
         for policy in POSSIBLE_COMPANY_POLICIES:
             companies[policy] = kwargs.get(policy, companies[policy])
         super().__init__(
-            num_workers_per_company=num_workers_per_company,
-            companies=companies,
-            graphs=graphs,
-            center_position=center_position,
-            company_location_radius=company_location_radius,
-            agent_home_radius=agent_home_radius,
-            company_budget_per_employee=company_budget_per_employee,
+            num_workers_per_company,
+            companies,
+            graphs,
+            merged_graph,
+            center_position,
+            company_location_radius,
+            agent_home_radius,
+            company_budget_per_employee,
             seed=42,
         )
 
 model = InterfaceSustainabilityModel(
     num_workers_per_company=num_workers_per_company,
     graphs=graphs,
+    merged_graph=merged_graph,
     center_position=center,
     company_location_radius=company_location_radius,
     agent_home_radius=total_radius,
     company_budget_per_employee=DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
 )
-
-class Debugger:
-    ig = 1
-    ip = 1
-    @staticmethod
-    def debug_graph_rendering(model):
-        print(f"{Debugger.ig}: Rendering graph")
-        Debugger.ig += 1
-    @staticmethod
-    def debug_plot(model):
-        print(f"{Debugger.ip}: Rendering plot")
-        Debugger.ip += 1
-
 
 def convert_to_solara_figure(mpl_fig: Figure):
     solara_figure = solara.FigureMatplotlib(mpl_fig)
@@ -121,8 +113,7 @@ def convert_to_solara_figure(mpl_fig: Figure):
 
     return solara_figure
 
-def make_graph(model: SustainabilityModel):
-    Debugger.debug_graph_rendering(model)
+def make_graph_plot(model: SustainabilityModel):
     worker_agent_positions_state = model.get_worker_positions()
     visualization_graph = model.visualization_graph
 
@@ -178,23 +169,22 @@ def make_graph(model: SustainabilityModel):
 
 def make_transport_usage_plot(model: SustainabilityModel):
     return convert_to_solara_figure(
-        get_transport_usage_plot(model)
+        get_transport_usage_plot(model, figsize=(6, 4))
     )
 
 def make_co2_emissions_plot(model: SustainabilityModel):
-    Debugger.debug_plot(model)
     return convert_to_solara_figure(
-        get_co2_emissions_plot(model)
+        get_co2_emissions_plot(model, figsize=(6, 4))
     )
 
 def make_co2_budget_plot(model: SustainabilityModel):
     return convert_to_solara_figure(
-        get_co2_budget_plot(model)
+        get_co2_budget_plot(model, figsize=(6, 4))
     )
 
 def make_co2_budget_per_company_type_plot(model: SustainabilityModel):
     return convert_to_solara_figure(
-        get_co2_budget_per_company_type_plot(model)
+        get_co2_budget_per_company_type_plot(model, figsize=(6, 4))
     )
 
 @solara.component
@@ -203,11 +193,11 @@ def Page():
     SolaraViz(
         model,
         components=[
-            make_graph,
+            make_graph_plot,
             make_co2_emissions_plot,
             make_transport_usage_plot,
-            make_co2_budget_plot,
             make_co2_budget_per_company_type_plot,
+            make_co2_budget_plot,
         ],
         model_params=model_params,
         name="Sustainability Model",
