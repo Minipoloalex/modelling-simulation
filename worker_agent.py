@@ -1,7 +1,5 @@
 from mesa import Agent
-from enum import Enum
 import math
-from mesa.space import NetworkGrid
 import networkx as nx
 from graph_utils import get_path_information, calculate_distance
 from company_agent import CompanyAgent
@@ -61,6 +59,16 @@ class WorkerAgent(Agent):
 
     def __setup_transport_chosen(self) -> None:
         # Allows choosing a different transport at a given step in the simulation
+
+        # Count transport choice
+        if self.transport_chosen == "walk":
+            self.kms_walk = (self.kms_walk[0] + 1, self.kms_walk[1])
+        elif self.transport_chosen == "bike":
+            self.kms_bycicle = (self.kms_bycicle[0] + 1, self.kms_bycicle[1])
+        elif self.transport_chosen == "electric_scooter":
+            self.kms_electric_scooter = (self.kms_electric_scooter[0] + 1, self.kms_electric_scooter[1])
+        elif self.transport_chosen == "car":
+            self.kms_car = (self.kms_car[0] + 1, self.kms_car[1])
 
         self.chosen_graph_name: str = self.transport_graph[self.transport_chosen]
         self.graph: nx.MultiDiGraph = self.model.graphs[self.chosen_graph_name]
@@ -172,13 +180,13 @@ class WorkerAgent(Agent):
         distance_travelled = calculate_distance(self.graph, previous_node, current_node)
 
         if self.transport_chosen == "walk":
-            self.kms_walk = (self.kms_walk[0] + 1, self.kms_walk[1] + distance_travelled)
+            self.kms_walk = (self.kms_walk[0], self.kms_walk[1] + distance_travelled)
         elif self.transport_chosen == "bike":
-            self.kms_bycicle = (self.kms_bycicle[0] + 1, self.kms_bycicle[1] + distance_travelled)
+            self.kms_bycicle = (self.kms_bycicle[0], self.kms_bycicle[1] + distance_travelled)
         elif self.transport_chosen == "electric_scooter":
-            self.kms_electric_scooter = (self.kms_electric_scooter[0] + 1, self.kms_electric_scooter[1] + distance_travelled)
+            self.kms_electric_scooter = (self.kms_electric_scooter[0], self.kms_electric_scooter[1] + distance_travelled)
         elif self.transport_chosen == "car":
-            self.kms_car = (self.kms_car[0] + 1, self.kms_car[1] + distance_travelled)
+            self.kms_car = (self.kms_car[0], self.kms_car[1] + distance_travelled)
         else:
             raise ValueError(f"Invalid transport chosen '{self.transport_chosen}'")
 

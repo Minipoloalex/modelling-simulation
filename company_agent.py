@@ -40,9 +40,9 @@ class CompanyAgent(Agent):
 
         # Reference table for the sustainability factors
         factor_map = {
-            10: 1.15,
-            5: 1.08,
-            0: 1.20,
+            10: 1.20,
+            5: 1.15,
+            0: 1.08,
             -5: 0.95,
             -10: 1.00,
             -100: 0.90,

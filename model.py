@@ -24,7 +24,7 @@ import seaborn as sns
 # CO2 is in grams
 CAR_CO2_VALUE = 250
 ESCOOTER_CO2_VALUE = 67
-DEFAULT_CO2_BUDGET_PER_EMPLOYEE = int(5e2)   # Per employee
+DEFAULT_CO2_BUDGET_PER_EMPLOYEE = int(1e3)   # Per employee
 
 class SustainabilityModel(Model):
     def __init__(
@@ -67,7 +67,7 @@ class SustainabilityModel(Model):
                 "Time Spent in transports per agent": self.calculate_time_spent_in_transports,  # not plotted yet (should it be plotted?)
                 "CO2_avg_per_company": self.calculate_CO2_avg_per_company,
                 "CO2_avg_per_company_type": self.calculate_CO2_avg_per_company_type,
-                # Travelled distance ?
+                "transport_costs": self.calculate_transport_costs,
             },
         )
         self.new_day_steps: list[int] = []
@@ -121,18 +121,17 @@ class SustainabilityModel(Model):
         for agent in self.worker_agents:
             final_dict[agent.transport_chosen] += 1
         return final_dict
-    
-    def calculate_times_each_transport_was_used_per_agent(self):
-        final_dict = {}
+
+    def calculate_times_each_transport_was_used_total(self):
+        final_dict = {"car": 0, "bike": 0, "eletric_scooter": 0, "walk": 0}       
         for agent in self.schedule.agents:
             if isinstance(agent, WorkerAgent):
-                total_times_car = agent.kms_car[0]
-                total_times_bycicle = agent.kms_bycicle[0]
-                total_times_electric_scooter = agent.kms_electric_scooter[0]
-                total_times_walk = agent.kms_walk[0]
-                final_dict[agent.unique_id] = {"Total times car was used": total_times_car, "Total times bycicle was used": total_times_bycicle, "Total times electric scooter was used": total_times_electric_scooter, "Total times walk was used": total_times_walk}
-        return final_dict  
-    
+                final_dict["car"] += agent.kms_car[0]
+                final_dict["bike"] += agent.kms_bycicle[0]
+                final_dict["eletric_scooter"] += agent.kms_electric_scooter[0]
+                final_dict["walk"] += agent.kms_walk[0]
+        return final_dict
+
     def calculate_time_spent_in_transports(self):
         final_dict = {}
         for agent in self.schedule.agents:
@@ -184,6 +183,19 @@ class SustainabilityModel(Model):
             companies_co2[policy] = co2_sum / cnt_companies
         return companies_co2
 
+    def calculate_transport_costs(self):
+        cost_per_km_car = 0.09  # cars with a consume cost of -> 5.0L/100km; 1L of gasoline -> 1.70; VALOR EM EUROS
+        cost_per_km_electric_scooter = 0.003 # 25km -> 225Wh ; 1 KWh -> 0.312 ; VALOR EM EUROS  
+
+        transport_costs = []
+        for agent in self.schedule.agents:
+            if isinstance(agent, WorkerAgent):
+                cost_car = agent.kms_car[1] * cost_per_km_car
+                cost_electric_scooter = agent.kms_electric_scooter[1] * cost_per_km_electric_scooter
+                total_cost = cost_car + cost_electric_scooter 
+                transport_costs.append(total_cost)
+        return transport_costs
+
     def step(self):
         self.schedule.step()
         self.data_collector.collect(self)
@@ -218,9 +230,27 @@ def get_transport_usage_plot(model: SustainabilityModel, figsize: Optional[tuple
     # Create a bar plot
     fig, ax = plt.subplots(figsize=figsize)
     ax.bar(results.keys(), results.values())
-    ax.set_title("Transport Usage Frequency")
+    ax.set_title("Current Transport Usage")
     ax.set_xlabel("Transport Method")
     ax.set_ylabel("Number of People")
+    fig.tight_layout()
+    return fig
+
+def get_total_transport_usage_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
+    """
+    Generates a bar plot to visualize the times each transport method was used.
+
+    Args:
+        model: The simulation model instance.
+    """
+    results = model.calculate_times_each_transport_was_used_total()
+
+    # Create a bar plot
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.bar(results.keys(), results.values())
+    ax.set_title("Total Transport Usage")
+    ax.set_xlabel("Transport Method")
+    ax.set_ylabel("Number of Choices")
     fig.tight_layout()
     return fig
 
@@ -347,12 +377,29 @@ def get_co2_budget_plot(model: SustainabilityModel, figsize: Optional[tuple[floa
     fig.tight_layout()
     return fig
 
+def get_transport_costs_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
+    transport_costs = model.data_collector.get_model_vars_dataframe()["transport_costs"]
+    timesteps = transport_costs.index
+    cost_mean = transport_costs.apply(np.mean)
+    cost_std = transport_costs.apply(np.std)
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    ax.plot(timesteps, cost_mean, label="Mean Transport Costs", color="blue")
+    ax.fill_between(timesteps, cost_mean - cost_std, cost_mean + cost_std, color="blue", alpha=0.2, label="Std Dev")
+
+    ax.set_title("Transport Costs Over Time")
+    ax.set_xlabel("Time Step")
+    ax.set_ylabel("Transport Costs")
+    ax.legend()
+    fig.tight_layout()
+    return fig
 
 # Running/Testing the model
 if __name__ == "__main__":
     num_workers_per_company = 10
 
-    GRAPH_DISTANCE = 1000
+    GRAPH_DISTANCE = 5000
     center = 41.1664384, -8.6016
     graphs = load_graphs(center, distance_meters=GRAPH_DISTANCE)
     merged_graph = merge_graphs(graphs)
@@ -374,8 +421,11 @@ if __name__ == "__main__":
         seed=42
     )
 
-    while not model.finished:
+    # while not model.finished:
+    #     model.step()
+    for _ in range(500):
         model.step()
+
     print(f"Total number of model steps before finishing (one day): {model.steps}")
 
     # Access the collected data for analysis
@@ -386,6 +436,9 @@ if __name__ == "__main__":
     transport_usage_plot = get_transport_usage_plot(model)
     transport_usage_plot.savefig("transport_usage.png")
 
+    transport_total_usage_plot = get_total_transport_usage_plot(model)
+    transport_total_usage_plot.savefig("total_transport_usage.png")
+
     co2_emissions_plot = get_co2_emissions_plot(model)
     co2_emissions_plot.savefig("co2_emissions.png")
 
@@ -394,3 +447,6 @@ if __name__ == "__main__":
 
     co2_budget_policy_type_plot = get_co2_budget_per_company_type_plot(model)
     co2_budget_policy_type_plot.savefig("co2_budget_policy_type.png")
+
+    cost_benefit_per_employee_plot = get_transport_costs_plot(model)
+    cost_benefit_per_employee_plot.savefig("cost_benefit_per_employee.png")

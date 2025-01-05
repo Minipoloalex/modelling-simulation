@@ -22,7 +22,7 @@ from model import (
 )
 from company_agent import POSSIBLE_COMPANY_POLICIES
 
-total_radius = 5000     # 1000m for developing, 5000m for actual simulations
+total_radius = 1000     # 1000m for developing, 5000m for actual simulations
 company_location_radius = total_radius // 5
 center = 41.1664384, -8.6016
 graphs = load_graphs(center, distance_meters=total_radius)
@@ -50,7 +50,14 @@ model_params = {
     "center_position": center,
     "company_location_radius": company_location_radius,
     "agent_home_radius": total_radius,
-    "company_budget_per_employee": DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
+    "company_budget_per_employee": {
+        "type": "SliderInt",
+        "value": DEFAULT_CO2_BUDGET_PER_EMPLOYEE,
+        "label": "Base CO2(g) Budget Per Employee",
+        "min": 500,
+        "max": 5000,
+        "step": 100,
+    },
     "seed": 42,
 }
 
@@ -92,7 +99,6 @@ class InterfaceSustainabilityModel(SustainabilityModel):
             company_location_radius,
             agent_home_radius,
             company_budget_per_employee,
-            seed=42,
         )
 
 model = InterfaceSustainabilityModel(
