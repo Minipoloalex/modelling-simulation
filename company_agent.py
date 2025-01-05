@@ -20,20 +20,23 @@ class CompanyAgent(Agent):
             type: get_closest_node(graph, location_position)[0]
             for type, graph in self.model.graphs.items()
         }
-        self.company_budget = obtain_budget(self.policy, company_budget)
+        self.company_budget: float = obtain_budget(self.policy, company_budget)
+        self.previous_sum_CO2: float = 0
 
         self.visualization_node = self.location_nodes[self.model.visualization_graph_type]
         self.model.grid.place_agent(self, self.visualization_node)
+
 
     def add_worker(self, worker):
         self.workers.append(worker)
 
     def check_policies(self):
-        sum_CO2kg = 0
+        sum_CO2 = 0
         for agent in self.workers:
-            sum_CO2kg += self.model.get_total_co2(agent)
+            sum_CO2 += self.model.get_total_co2(agent)
 
-        budget_diff_percent = (sum_CO2kg / self.company_budget - 1) * 100
+        curr_day_sum_CO2 = sum_CO2 - self.previous_sum_CO2
+        budget_diff_percent = (curr_day_sum_CO2 / self.company_budget - 1) * 100
 
         # Reference table for the sustainability factors
         factor_map = {
@@ -56,6 +59,8 @@ class CompanyAgent(Agent):
 
         for agent in self.workers:
             agent.modify_sustainable_factor(factor)
+
+        self.previous_sum_CO2 = sum_CO2
 
     def step(self):
         pass
