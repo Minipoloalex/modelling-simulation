@@ -84,7 +84,7 @@ def get_path_information(
 
     return PathInformation(path, transport_distance, additional_distance)
 
-def random_position_within_radius(rng, center_position, radius):
+def random_position_within_radius(rng, center_position: tuple[float, float], bbox_distance: float):
     """
     Generate a random latitude and longitude within a specified radius from a center position.
 
@@ -95,26 +95,12 @@ def random_position_within_radius(rng, center_position, radius):
     Returns:
     - tuple[float, float]: the random latitude and longitude
     """
-    # Earth's radius in meters
-    EARTH_RADIUS = 6378137
+    west, south, east, north = bbox_from_point(center_position, bbox_distance)
 
-    # Convert radius from meters to degrees
-    radius_in_degrees = radius / EARTH_RADIUS * (180 / math.pi)
+    random_lat = rng.uniform(south, north)
+    random_lon = rng.uniform(west, east)
 
-    # Generate a random distance within the radius
-    distance = rng.uniform(0, radius_in_degrees)
-
-    # Generate a random angle
-    angle = rng.uniform(0, 2 * math.pi)
-
-    # Calculate new latitude and longitude
-    delta_lat = distance * math.cos(angle)
-    delta_lon = distance * math.sin(angle) / math.cos(math.radians(center_position[0]))
-    
-    new_lat = center_position[0] + delta_lat
-    new_lon = center_position[1] + delta_lon
-    
-    return new_lat, new_lon
+    return random_lat, random_lon
 
 
 def merge_graphs(graphs: dict[str, nx.MultiDiGraph]) -> nx.MultiDiGraph:
