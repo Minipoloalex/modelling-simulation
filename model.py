@@ -70,6 +70,7 @@ class SustainabilityModel(Model):
                 # Travelled distance ?
             },
         )
+        self.new_day_steps: list[int] = []
 
         self.company_agents: list[CompanyAgent] = self.__init_companies(center_position, companies, company_location_radius)
         self.worker_agents: list[WorkerAgent] = self.__init_agents(center_position, agent_home_radius)
@@ -199,6 +200,8 @@ class SustainabilityModel(Model):
                 self.finished = True
 
             if self.path_switches % 2 == 0:
+                self.new_day_steps.append(self.steps)
+
                 for company in self.company_agents:
                     if company.policy != "policy0" and company.policy != "policy1":
                         company.check_policies()
@@ -246,6 +249,26 @@ def get_co2_emissions_plot(model: SustainabilityModel, figsize: Optional[tuple[f
     fig.tight_layout()
     return fig
 
+def get_budget_plot_line_points(
+    new_day_steps: list[int], curr_day_step, budget_per_day: float,
+) -> tuple[list[int], list[float]]:
+    """
+    Helper to plot budget lines that increase upon each day completed.
+    Returns the list of X and Y coordinates for the points of the budget lines.
+    """
+    curr_budget = budget_per_day
+    xl = [0]
+    yl = [budget_per_day]
+    for day in new_day_steps:
+        xl += [day, day]
+        yl += [curr_budget, curr_budget + budget_per_day]
+        curr_budget += budget_per_day
+
+    xl.append(curr_day_step)
+    yl.append(curr_budget)
+    return xl, yl
+
+
 def get_co2_budget_per_company_type_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
     co2_emissions_per_company_type = model.data_collector \
         .get_model_vars_dataframe()["CO2_avg_per_company_type"]
@@ -272,16 +295,17 @@ def get_co2_budget_per_company_type_plot(model: SustainabilityModel, figsize: Op
     fig, ax = plt.subplots(figsize=figsize)
     policy_nr = 0
     for budget, policies in budgets.items():
-        budget_largest_co2 = 0
-        first_policy_nr = policy_nr
+        budget_xs, budget_ys = get_budget_plot_line_points(model.new_day_steps, model.steps, budget)
+        ax.plot(
+            budget_xs, budget_ys,
+            linestyle="--", color=colors[policy_nr], drawstyle='steps-post',
+            label=f"Budget for " + ", ".join(policies),
+        )
+
         for policy in policies:
             policy_co2_emissions = co2_emissions_per_company_type.apply(
                 lambda co2: co2[policy]
             )
-            if not policy_co2_emissions.empty:
-                # Max over last CO2 emission (largest)
-                budget_largest_co2 = max(budget_largest_co2,
-                                         policy_co2_emissions.iat[-1])
             ax.plot(
                 timesteps,
                 policy_co2_emissions,
@@ -289,20 +313,6 @@ def get_co2_budget_per_company_type_plot(model: SustainabilityModel, figsize: Op
                 color=colors[policy_nr],
             )
             policy_nr += 1
-
-        plotted_budget = budget
-        label = f"Budget for " + ", ".join(policies)
-        # Plot up until the budget bigger than last CO2 emissions
-        # for this company type
-        while plotted_budget <= budget_largest_co2 + budget:
-            ax.axhline(
-                y=plotted_budget,
-                color=colors[first_policy_nr],
-                linestyle="--",
-                label=label,
-            )
-            plotted_budget += budget
-            label = None    # Only label the first horizontal line
 
     ax.set_title("Average CO2 emissions per company type (policy)")
     ax.set_xlabel("Time Step")
@@ -319,20 +329,16 @@ def get_co2_budget_plot(model: SustainabilityModel, figsize: Optional[tuple[floa
     co2_std = co2_avgs.apply(np.std)
 
     fig, ax = plt.subplots(figsize=figsize)
+
     ax.plot(timesteps, co2_mean, label="Mean CO2 Emissions", color="blue")
     ax.fill_between(timesteps, co2_mean - co2_std, co2_mean + co2_std, color="blue", alpha=0.2, label="Std Dev")
 
-    largest_co2_mean = (
-        co2_mean.iat[-1]
-        if not co2_avgs.empty
-        else 0
+    budget_xs, budget_ys = get_budget_plot_line_points(model.new_day_steps, model.steps, budget)
+    ax.plot(
+        budget_xs, budget_ys,
+        linestyle="--", color="red", drawstyle='steps-post',
+        label="Base Budget Per Employee",
     )
-    plotted_budget = budget
-    label = "Base Budget Per Employee"
-    while plotted_budget <= largest_co2_mean + budget:
-        ax.axhline(y=plotted_budget, color="red", linestyle="--", label=label)
-        plotted_budget += budget
-        label = None    # Only label the first horizontal line
 
     ax.set_title("CO2 Emissions Per Employee Over Time")
     ax.set_xlabel("Time Step")

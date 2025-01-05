@@ -2,7 +2,7 @@ import mesa
 print(f"Mesa version: {mesa.__version__}")
 
 import solara
-from mesa.visualization import SolaraViz, make_plot_component
+from mesa.visualization import SolaraViz
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -22,7 +22,7 @@ from model import (
 )
 from company_agent import POSSIBLE_COMPANY_POLICIES
 
-total_radius = 1000     # 1000m for developing, 5000m for actual simulations
+total_radius = 5000     # 1000m for developing, 5000m for actual simulations
 company_location_radius = total_radius // 5
 center = 41.1664384, -8.6016
 graphs = load_graphs(center, distance_meters=total_radius)
