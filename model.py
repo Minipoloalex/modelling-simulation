@@ -13,7 +13,6 @@ from graph_utils import (
     load_graphs,
     random_position_within_radius,
     merge_graphs,
-    create_subgraph_within_radius,
 )
 from typing import Optional
 import numpy as np
@@ -78,13 +77,6 @@ class SustainabilityModel(Model):
         self.path_switches = 0
         self.finished = False
 
-        self.visualization_graph = (
-            self.grid.G
-            if agent_home_radius <= 1000
-            else create_subgraph_within_radius(
-                self.grid.G, center_position, distance_meters=company_location_radius
-            )
-        )
 
     def __init_companies(self, center_position: tuple[float, float], companies: dict[str, int], possible_radius: int):
         for company_policy, company_count in companies.items():
@@ -108,9 +100,6 @@ class SustainabilityModel(Model):
         return {
             agent.unique_id: agent.pos for agent in self.worker_agents
         }
-
-    # def calculate_sustainable_choices(self):
-    #     return sum(agent.kms_bycicle[0]+agent.kms_walk[0] for agent in self.schedule.agents if isinstance(agent, WorkerAgent))
 
     def calculate_times_each_transport_was_used(self):
         transports = ["car", "bike", "electric_scooter", "walk"]
