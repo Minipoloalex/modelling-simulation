@@ -43,8 +43,8 @@ class CompanyAgent(Agent):
             10: 1.20,
             5: 1.15,
             0: 1.08,
-            -5: 0.95,
-            -10: 1.00,
+            -5: 1.00,
+            -10: 0.95,
             -100: 0.90,
         }
 
@@ -55,7 +55,6 @@ class CompanyAgent(Agent):
                 -100,
             )
         ]
-        print(f"Budget diff %: {budget_diff_percent}, Factor {factor}")
 
         for agent in self.workers:
             agent.modify_sustainable_factor(factor)

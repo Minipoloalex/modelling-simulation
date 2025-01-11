@@ -78,13 +78,6 @@ class SustainabilityModel(Model):
         self.path_switches = 0
         self.finished = False
 
-        self.visualization_graph = (
-            self.grid.G
-            if agent_home_radius <= 1000
-            else create_subgraph_within_radius(
-                self.grid.G, center_position, distance_meters=company_location_radius
-            )
-        )
 
     def __init_companies(self, center_position: tuple[float, float], companies: dict[str, int], possible_radius: int):
         for company_policy, company_count in companies.items():
@@ -195,6 +188,19 @@ class SustainabilityModel(Model):
                 total_cost = cost_car + cost_electric_scooter 
                 transport_costs.append(total_cost)
         return transport_costs
+    
+    def calculate_transport_costs_for_company(self,company):
+        cost_per_km_car = 0.09  # cars with a consume cost of -> 5.0L/100km; 1L of gasoline -> 1.70; VALOR EM EUROS
+        cost_per_km_electric_scooter = 0.003 # 25km -> 225Wh ; 1 KWh -> 0.312 ; VALOR EM EUROS  
+
+        transport_costs = []
+        for agent in self.schedule.agents:
+            if isinstance(agent, WorkerAgent) and agent.company == company:
+                cost_car = agent.kms_car[1] * cost_per_km_car
+                cost_electric_scooter = agent.kms_electric_scooter[1] * cost_per_km_electric_scooter
+                total_cost = cost_car + cost_electric_scooter 
+                transport_costs.append(total_cost)
+        return transport_costs
 
     def step(self):
         self.schedule.step()
@@ -208,15 +214,16 @@ class SustainabilityModel(Model):
             for agent in self.worker_agents:
                 agent.switch_path()
 
-            if self.path_switches == 2:
-                self.finished = True
-
             if self.path_switches % 2 == 0:
+                print ("Day Passed")
                 self.new_day_steps.append(self.steps)
-
+                print(len(self.new_day_steps))
                 for company in self.company_agents:
                     if company.policy != "policy0" and company.policy != "policy1":
                         company.check_policies()
+
+                if len(self.new_day_steps) == 30:
+                    self.finished = True
 
 def get_transport_usage_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
     """
@@ -395,9 +402,45 @@ def get_transport_costs_plot(model: SustainabilityModel, figsize: Optional[tuple
     fig.tight_layout()
     return fig
 
+def get_emissions_plot_company_comparison(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
+    # Categorize companies
+    sustainable_companies = [company for company in model.company_agents if company.policy in ["policy1"]]
+    non_sustainable_companies = [company for company in model.company_agents if company.policy in ["policy0"]]
+
+    # Calculate averages
+    sustainable_emissions = np.mean([model.get_total_co2(agent) for company in sustainable_companies for agent in company.workers])
+    non_sustainable_emissions = np.mean([model.get_total_co2(agent) for company in non_sustainable_companies for agent in company.workers])
+    print(sustainable_emissions, non_sustainable_emissions)
+    # Plot the comparison
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.bar(["Sustainable", "Non-Sustainable"], [sustainable_emissions, non_sustainable_emissions])
+
+    ax.set_title("Comparison of Emissions")
+    ax.set_ylabel("Emissions")
+    fig.tight_layout()
+    return fig
+
+def get_costs_plot_company_comparison(model, figsize=None):
+    # Categorize companies
+    sustainable_companies = [company for company in model.company_agents if company.policy in ["policy1"]]
+    non_sustainable_companies = [company for company in model.company_agents if company.policy in ["policy0"]]
+
+    # Calculate averages
+    sustainable_costs = np.mean([model.calculate_transport_costs_for_company(company) for company in sustainable_companies])
+    non_sustainable_costs = np.mean([model.calculate_transport_costs_for_company(company) for company in non_sustainable_companies])
+    print(sustainable_costs, non_sustainable_costs)
+    # Plot the comparison
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.bar(["Sustainable", "Non-Sustainable"], [sustainable_costs, non_sustainable_costs])
+
+    ax.set_title("Comparison of Costs")
+    ax.set_ylabel("Costs")
+    fig.tight_layout()
+    return fig
+
 # Running/Testing the model
 if __name__ == "__main__":
-    num_workers_per_company = 10
+    num_workers_per_company = 30
 
     GRAPH_DISTANCE = 5000
     center = 41.1664384, -8.6016
@@ -405,10 +448,10 @@ if __name__ == "__main__":
     merged_graph = merge_graphs(graphs)
     companies = {
         "policy0": 3,
-        "policy1": 2,
-        "policy2": 4,
-        "policy3": 2,
-        "policy4": 1,
+        "policy1": 3,
+        "policy2": 0,
+        "policy3": 0,
+        "policy4": 0,
     }
     model = SustainabilityModel(
         num_workers_per_company,
@@ -418,13 +461,14 @@ if __name__ == "__main__":
         center_position=center,
         company_location_radius=GRAPH_DISTANCE // 5,
         agent_home_radius=GRAPH_DISTANCE,
-        seed=42
+        seed=0
     )
 
-    # while not model.finished:
-    #     model.step()
-    for _ in range(500):
+    while not model.finished:
         model.step()
+
+    # for _ in range(500):
+    #    model.step()
 
     print(f"Total number of model steps before finishing (one day): {model.steps}")
 
@@ -450,3 +494,9 @@ if __name__ == "__main__":
 
     cost_benefit_per_employee_plot = get_transport_costs_plot(model)
     cost_benefit_per_employee_plot.savefig("cost_benefit_per_employee.png")
+
+    comparison_emissions_plot = get_emissions_plot_company_comparison(model)
+    comparison_emissions_plot.savefig("emissions_comparison.png")
+
+    comparison_costs_plot = get_costs_plot_company_comparison(model)
+    comparison_costs_plot.savefig("costs_comparison.png")
