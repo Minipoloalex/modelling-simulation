@@ -1,4 +1,4 @@
-# Introduction 
+# Introduction
 
 ## Problem Formulation
 
@@ -23,11 +23,32 @@ behaviour of our complex system and assess how changes in a set of independent v
 (like transport usage or CO2 emissions).
 
 ## Problem description
+
 Some companies are aiming to encourage their employees to adopt more sustainable
 commuting habits by introducing a benefits or credit scheme designed to incentivise eco-
 friendly travel choices
 
+## Set up and run the simulation models
+
+To be able to run the simulation, you first need access to several packages. In addition to the common packages, you also need the Mesa, OSMnx and Solara packages.
+
+You can run the following code to install all the packages needed for the code.
+
+`pip install -r requirements.txt`
+
+To run the simulation models you can simply run the command:
+
+`solara run app.py`
+
+
+After opening the localhost page in the upper left corner there will be controls and model parameters.
+
+> Note: It may take a while to set up after running the command.
+
+**Enjoy!!!**
+
 ## Company policies
+
 These can also be considered as the operation policies of our model and simulation.
 
 | Policy | Budget | Modify Sustainability factor of employees | Init sustainability factor |
