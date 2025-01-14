@@ -4,8 +4,6 @@ import osmnx.routing as routing
 import osmnx.truncate as truncate
 from osmnx.utils_geo import bbox_from_point
 import networkx as nx
-import math
-import numpy as np
 from collections import namedtuple
 
 # ox.settings.log_console = True    # Enable OSMnx debugging

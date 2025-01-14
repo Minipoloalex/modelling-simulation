@@ -4,9 +4,7 @@ print(f"Mesa version: {mesa.__version__}")
 import solara
 from mesa.visualization import SolaraViz
 
-import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 from matplotlib.figure import Figure
 
 import networkx as nx

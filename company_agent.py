@@ -37,14 +37,19 @@ class CompanyAgent(Agent):
 
         curr_day_sum_CO2 = sum_CO2 - self.previous_sum_CO2
         budget_diff_percent = (curr_day_sum_CO2 / self.company_budget - 1) * 100
+        # budget_diff_percent > 0 -> curr_day_sum_CO2 > company_budget
+        # budget_diff_percent < 0 -> curr_day_sum_CO2 < company_budget
 
         # Reference table for the sustainability factors
+        # Values to multiply by the sustainability factors
+        # > 1 -> increase sustainability
+        # < 1 -> decrease sustainability
         factor_map = {
             10: 1.20,
             5: 1.15,
             0: 1.08,
-            -5: 0.95,
-            -10: 1.00,
+            -5: 1.00,
+            -10: 0.95,
             -100: 0.90,
         }
 
@@ -55,7 +60,7 @@ class CompanyAgent(Agent):
                 -100,
             )
         ]
-        print(f"Budget diff %: {budget_diff_percent}, Factor {factor}")
+        # print(f"Budget diff %: {budget_diff_percent}, Factor {factor}")
 
         for agent in self.workers:
             agent.modify_sustainable_factor(factor)

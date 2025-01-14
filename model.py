@@ -3,7 +3,6 @@ from mesa.time import RandomActivation
 from mesa.space import NetworkGrid
 from mesa.datacollection import DataCollector
 import networkx as nx
-import osmnx as ox
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from worker_agent import WorkerAgent
@@ -18,7 +17,6 @@ from typing import Optional
 import numpy as np
 
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 # CO2 is in grams
 CAR_CO2_VALUE = 250
@@ -77,7 +75,6 @@ class SustainabilityModel(Model):
         self.path_switches = 0
         self.finished = False
 
-
     def __init_companies(self, center_position: tuple[float, float], companies: dict[str, int], possible_radius: int):
         for company_policy, company_count in companies.items():
             for _ in range(company_count):
@@ -119,6 +116,22 @@ class SustainabilityModel(Model):
                 final_dict["bike"] += agent.kms_bycicle[0]
                 final_dict["eletric_scooter"] += agent.kms_electric_scooter[0]
                 final_dict["walk"] += agent.kms_walk[0]
+        return final_dict
+
+    def calculate_times_each_transport_was_used_per_company_type(self):
+        final_dict = {}
+        for company in self.company_agents:
+            policy = company.policy
+            final_dict[policy] = final_dict.get(policy, {})
+            final_dict[policy]["car"] = final_dict[policy].get("car", 0)
+            final_dict[policy]["bike"] = final_dict[policy].get("bike", 0)
+            final_dict[policy]["electric_scooter"] = final_dict[policy].get("electric_scooter", 0)
+            final_dict[policy]["walk"] = final_dict[policy].get("walk", 0)
+            for worker in company.workers:
+                final_dict[policy]["car"] += worker.kms_car[0]
+                final_dict[policy]["bike"] += worker.kms_bycicle[0]
+                final_dict[policy]["electric_scooter"] += worker.kms_electric_scooter[0]
+                final_dict[policy]["walk"] += worker.kms_walk[0]
         return final_dict
 
     def calculate_time_spent_in_transports(self):
@@ -206,6 +219,9 @@ class SustainabilityModel(Model):
                 for company in self.company_agents:
                     if company.policy != "policy0" and company.policy != "policy1":
                         company.check_policies()
+    @property
+    def days_complete(self):
+        return len(self.new_day_steps)
 
 def get_transport_usage_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
     """
@@ -242,6 +258,36 @@ def get_total_transport_usage_plot(model: SustainabilityModel, figsize: Optional
     ax.set_ylabel("Number of Choices")
     fig.tight_layout()
     return fig
+
+def get_total_transport_usage_plot_per_company_type(
+    model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None
+) -> Figure:
+    results = model.calculate_times_each_transport_was_used_per_company_type()
+    policies = list(results.keys())  # First-level keys (policies)
+    transports = list(next(iter(results.values())).keys())  # Second-level keys (transports)
+    values = np.array([[results[policy].get(transport, 0) for transport in transports] for policy in policies])
+
+    x = np.arange(len(transports))  # Position for each transport group
+    width = 0.2  # Width of each smaller bar
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Create bars for each policy
+    for i, policy in enumerate(policies):
+        ax.bar(x + i * width, values[i], width, label=policy)
+
+    # Customize plot
+    ax.set_xlabel("Transports")
+    ax.set_ylabel("Number of choices")
+    ax.set_title("Transport usage by Company Policy")
+    ax.set_xticks(x + width * (len(policies) - 1) / 2)
+    ax.set_xticklabels(transports)
+    ax.legend(title="Policies")
+
+    # Adjust layout and return figure
+    fig.tight_layout()
+    return fig
+
 
 def get_co2_emissions_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
     transports = ["car", "bike", "walk", "electric_scooter"]
