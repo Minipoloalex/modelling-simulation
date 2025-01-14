@@ -2,25 +2,24 @@ from mesa import Model
 from mesa.time import RandomActivation
 from mesa.space import NetworkGrid
 from mesa.datacollection import DataCollector
-import networkx as nx
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-from worker_agent import WorkerAgent
-from company_agent import CompanyAgent, obtain_budget
-
-from graph_utils import (
-    load_graphs,
-    random_position_within_radius,
-    merge_graphs,
-)
-from typing import Optional
+import networkx as nx
 import numpy as np
 
-import matplotlib.pyplot as plt
+from typing import Optional
 
-# CO2 is in grams
-CAR_CO2_VALUE = 250     # Value of reference found here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
-ESCOOTER_CO2_VALUE = 67 # Value of reference found here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+from worker_agent import WorkerAgent
+from company_agent import CompanyAgent, obtain_budget
+from graph_utils import random_position_within_bouding_box
+
+# Values are in grams per kms
+CAR_CO2_G_KM = 250     # Value of reference found here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+ESCOOTER_CO2_G_KM = 67 # Value of reference found here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+
+# Values are in Euros (€) per kms
+CAR_EURO_KM = 0.09          # cars with a consume cost of -> 5.0L/100km; 1L of gasoline -> 1.70
+ESCOOTER_EURO_KM = 0.003     # 25km -> 225Wh ; 1 KWh -> 0.312
 DEFAULT_CO2_BUDGET_PER_EMPLOYEE = int(1e3)   # Per employee
 
 class SustainabilityModel(Model):
@@ -77,7 +76,7 @@ class SustainabilityModel(Model):
     def __init_companies(self, center_position: tuple[float, float], companies: dict[str, int], possible_radius: int):
         for company_policy, company_count in companies.items():
             for _ in range(company_count):
-                position = random_position_within_radius(self.random, center_position, possible_radius)
+                position = random_position_within_bouding_box(self.random, center_position, bbox_distance_meters=possible_radius)
                 company = CompanyAgent(self, company_policy, position, self.base_company_budget)
                 self.schedule.add(company)
         return self.schedule.agents[: self.num_companies]
@@ -85,7 +84,7 @@ class SustainabilityModel(Model):
     def __init_agents(self, center_position: tuple[float, float], possible_radius):
         for company in self.company_agents:
             for _ in range(self.num_workers_per_company):
-                position = random_position_within_radius(self.random, center_position, possible_radius)
+                position = random_position_within_bouding_box(self.random, center_position, bbox_distance_meters=possible_radius)
                 worker = WorkerAgent(self, company, position)
                 company.add_worker(worker)
                 self.schedule.add(worker)
@@ -134,14 +133,14 @@ class SustainabilityModel(Model):
         return final_dict
 
     def get_total_co2(self, agent: WorkerAgent) -> float:
-        return agent.kms_car[1] * CAR_CO2_VALUE + agent.kms_electric_scooter[1] * ESCOOTER_CO2_VALUE
+        return agent.kms_car[1] * CAR_CO2_G_KM + agent.kms_electric_scooter[1] * ESCOOTER_CO2_G_KM
 
     def calculate_CO2_emissions(self):
         CO2_kms_car = 0
         CO2_kms_e_scooter = 0
         for agent in self.worker_agents:
-            CO2_kms_car += agent.kms_car[1] * CAR_CO2_VALUE
-            CO2_kms_e_scooter += agent.kms_electric_scooter[1] * ESCOOTER_CO2_VALUE
+            CO2_kms_car += agent.kms_car[1] * CAR_CO2_G_KM
+            CO2_kms_e_scooter += agent.kms_electric_scooter[1] * ESCOOTER_CO2_G_KM
 
         return {
             "car": CO2_kms_car,
@@ -174,14 +173,11 @@ class SustainabilityModel(Model):
         return companies_co2
 
     def calculate_transport_costs(self):
-        cost_per_km_car = 0.09  # cars with a consume cost of -> 5.0L/100km; 1L of gasoline -> 1.70; VALOR EM EUROS
-        cost_per_km_electric_scooter = 0.003 # 25km -> 225Wh ; 1 KWh -> 0.312 ; VALOR EM EUROS  
-
         transport_costs = []
         for agent in self.schedule.agents:
             if isinstance(agent, WorkerAgent):
-                cost_car = agent.kms_car[1] * cost_per_km_car
-                cost_electric_scooter = agent.kms_electric_scooter[1] * cost_per_km_electric_scooter
+                cost_car = agent.kms_car[1] * CAR_EURO_KM
+                cost_electric_scooter = agent.kms_electric_scooter[1] * ESCOOTER_EURO_KM
                 total_cost = cost_car + cost_electric_scooter 
                 transport_costs.append(total_cost)
         return transport_costs
@@ -212,9 +208,7 @@ class SustainabilityModel(Model):
                 agent.switch_path()
 
             if self.path_switches % 2 == 0:
-                print ("Day Passed")
                 self.new_day_steps.append(self.steps)
-                print(len(self.new_day_steps))
                 for company in self.company_agents:
                     if company.policy != "policy0" and company.policy != "policy1":
                         company.check_policies()
@@ -222,7 +216,11 @@ class SustainabilityModel(Model):
                 if len(self.new_day_steps) == 30:
                     self.finished = True
 
-def get_transport_usage_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
+def get_current_transport_usage_plot(
+    model: SustainabilityModel,
+    figsize: Optional[tuple[float, float]] = None,
+    set_title: bool = True,
+) -> Figure:
     """
     Generates a bar plot to visualize the times each transport method was used.
 
@@ -234,13 +232,18 @@ def get_transport_usage_plot(model: SustainabilityModel, figsize: Optional[tuple
     # Create a bar plot
     fig, ax = plt.subplots(figsize=figsize)
     ax.bar(results.keys(), results.values())
-    ax.set_title("Current Transport Usage")
+    if set_title:
+        ax.set_title("Current Transport Usage")
     ax.set_xlabel("Transport Method")
     ax.set_ylabel("Number of People")
     fig.tight_layout()
     return fig
 
-def get_total_transport_usage_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
+def get_total_transport_usage_plot(
+    model: SustainabilityModel,
+    figsize: Optional[tuple[float, float]] = None,
+    set_title: bool = True,
+) -> Figure:
     """
     Generates a bar plot to visualize the times each transport method was used.
 
@@ -252,14 +255,17 @@ def get_total_transport_usage_plot(model: SustainabilityModel, figsize: Optional
     # Create a bar plot
     fig, ax = plt.subplots(figsize=figsize)
     ax.bar(results.keys(), results.values())
-    ax.set_title("Total Transport Usage")
+    if set_title:
+        ax.set_title("Total Transport Usage")
     ax.set_xlabel("Transport Method")
     ax.set_ylabel("Number of Choices")
     fig.tight_layout()
     return fig
 
 def get_total_transport_usage_plot_per_company_type(
-    model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None
+    model: SustainabilityModel,
+    figsize: Optional[tuple[float, float]] = None,
+    set_title: bool = True,
 ) -> Figure:
     results = model.calculate_times_each_transport_was_used_per_company_type()
     policies = list(results.keys())  # First-level keys (policies)
@@ -271,12 +277,11 @@ def get_total_transport_usage_plot_per_company_type(
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Create bars for each policy
     for i, policy in enumerate(policies):
         ax.bar(x + i * width, values[i], width, label=policy)
 
-    # Customize plot
-    ax.set_title("Transport usage by company policy")
+    if set_title:
+        ax.set_title("Transport usage by company policy")
     ax.set_xlabel("Transport Method")
     ax.set_ylabel("Number of Choices")
     ax.set_xticks(x + width * (len(policies) - 1) / 2)
@@ -288,7 +293,11 @@ def get_total_transport_usage_plot_per_company_type(
     return fig
 
 
-def get_co2_emissions_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
+def get_co2_emissions_plot(
+    model: SustainabilityModel,
+    figsize: Optional[tuple[float, float]] = None,
+    set_title: bool = True,
+) -> Figure:
     transports = ["car", "bike", "walk", "electric_scooter"]
     co2_emissions = model.data_collector.get_model_vars_dataframe()["CO2_emissions"]
     timesteps = co2_emissions.index
@@ -306,9 +315,10 @@ def get_co2_emissions_plot(model: SustainabilityModel, figsize: Optional[tuple[f
         )
     ax.plot(timesteps, total_co2_emissions, label="Total")
 
-    ax.set_title("Carbon Dioxide Emissions over time")
+    if set_title:
+        ax.set_title("Total Carbon Dioxide emissions over time")
     ax.set_xlabel("Time Step")
-    ax.set_ylabel("Carbon Dioxide Emissions (g)")
+    ax.set_ylabel("Carbon Dioxide emissions (g)")
     ax.legend()
     fig.tight_layout()
     return fig
@@ -336,7 +346,8 @@ def _get_budget_plot_line_points(
 def get_co2_budget_per_company_type_plot(
     model: SustainabilityModel,
     figsize: Optional[tuple[float, float]] = None,
-    plot_budget_lines: bool = False,
+    plot_budget_lines: bool = True,
+    set_title: bool = True,
 ) -> Figure:
     co2_emissions_per_company_type = model.data_collector \
         .get_model_vars_dataframe()["CO2_avg_per_company_type"]
@@ -383,15 +394,20 @@ def get_co2_budget_per_company_type_plot(
             )
             policy_nr += 1
 
-    ax.set_title("Carbon Dioxide emissions per company type")
+    if set_title:
+        ax.set_title("Carbon Dioxide emissions per company type over time")
     ax.set_xlabel("Time Step")
-    ax.set_ylabel("Carbon Dioxide Emissions per company type (g)")
-    if plot_budget_lines:
-        ax.legend()
+    ax.set_ylabel("Carbon Dioxide emissions per company type (g)")
+    ax.legend()
     fig.tight_layout()
     return fig
 
-def get_co2_budget_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
+
+def get_co2_budget_plot(
+    model: SustainabilityModel,
+    figsize: Optional[tuple[float, float]] = None,
+    set_title: bool = True,
+) -> Figure:
     budget = model.company_budget_per_employee
     co2_avgs = model.data_collector.get_model_vars_dataframe()["CO2_avg_per_company"]
     timesteps = co2_avgs.index
@@ -410,14 +426,19 @@ def get_co2_budget_plot(model: SustainabilityModel, figsize: Optional[tuple[floa
         label="Base Budget Per Employee",
     )
 
-    ax.set_title("Carbon Dioxide emissions per employee over time")
+    if set_title:
+        ax.set_title("Carbon Dioxide emissions per employee over time")
     ax.set_xlabel("Time Step")
-    ax.set_ylabel("Carbon Dioxide Emissions per employee (g)")
+    ax.set_ylabel("Carbon Dioxide emissions per employee (g)")
     ax.legend()
     fig.tight_layout()
     return fig
 
-def get_transport_costs_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
+def get_transport_costs_plot(
+    model: SustainabilityModel,
+    figsize: Optional[tuple[float, float]] = None,
+    set_title: bool = True,
+) -> Figure:
     transport_costs = model.data_collector.get_model_vars_dataframe()["transport_costs"]
     timesteps = transport_costs.index
     cost_mean = transport_costs.apply(np.mean)
@@ -428,45 +449,50 @@ def get_transport_costs_plot(model: SustainabilityModel, figsize: Optional[tuple
     ax.plot(timesteps, cost_mean, label="Mean of transport costs", color="blue")
     ax.fill_between(timesteps, cost_mean - cost_std, cost_mean + cost_std, color="blue", alpha=0.2, label="Standard deviation of transport costs")
 
-    ax.set_title("Transport costs per employee over time")
+    if set_title:
+        ax.set_title("Transport costs per employee over time")
     ax.set_xlabel("Time Step")
     ax.set_ylabel("Transport costs per employee (€)")
     ax.legend()
     fig.tight_layout()
     return fig
 
-def get_emissions_plot_company_comparison(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
-    # Categorize companies
+def get_emissions_plot_company_comparison(
+    model: SustainabilityModel,
+    figsize: Optional[tuple[float, float]] = None,
+    set_title: bool = True,
+) -> Figure:
     sustainable_companies = [company for company in model.company_agents if company.policy in ["policy1"]]
     non_sustainable_companies = [company for company in model.company_agents if company.policy in ["policy0"]]
 
-    # Calculate averages
     sustainable_emissions = np.mean([model.get_total_co2(agent) for company in sustainable_companies for agent in company.workers])
     non_sustainable_emissions = np.mean([model.get_total_co2(agent) for company in non_sustainable_companies for agent in company.workers])
-    print(sustainable_emissions, non_sustainable_emissions)
-    # Plot the comparison
+
     fig, ax = plt.subplots(figsize=figsize)
     ax.bar(["Sustainable", "Non-Sustainable"], [sustainable_emissions, non_sustainable_emissions])
 
-    ax.set_title("Comparison of Emissions")
-    ax.set_ylabel("Emissions")
+    if set_title:
+        ax.set_title("Carbon Dioxide emissions in Sustainable vs Nonsustainable companies")
+    ax.set_ylabel("Carbon Dioxide Emissions per employee (g)")
     fig.tight_layout()
     return fig
 
-def get_costs_plot_company_comparison(model, figsize=None):
-    # Categorize companies
+def get_costs_plot_company_comparison(
+    model: SustainabilityModel,
+    figsize: Optional[tuple[float, float]] = None,
+    set_title: bool = True,
+) -> Figure:
     sustainable_companies = [company for company in model.company_agents if company.policy in ["policy1"]]
     non_sustainable_companies = [company for company in model.company_agents if company.policy in ["policy0"]]
 
-    # Calculate averages
     sustainable_costs = np.mean([model.calculate_transport_costs_for_company(company) for company in sustainable_companies])
     non_sustainable_costs = np.mean([model.calculate_transport_costs_for_company(company) for company in non_sustainable_companies])
-    print(sustainable_costs, non_sustainable_costs)
-    # Plot the comparison
+
     fig, ax = plt.subplots(figsize=figsize)
     ax.bar(["Sustainable", "Non-Sustainable"], [sustainable_costs, non_sustainable_costs])
 
-    ax.set_title("Comparison of Costs")
-    ax.set_ylabel("Costs")
+    if set_title:
+        ax.set_title("Monetary Costs in Sustainable vs Nonsustainable companies")
+    ax.set_ylabel("Monetary Costs per employee (€)")
     fig.tight_layout()
     return fig

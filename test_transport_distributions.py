@@ -1,7 +1,8 @@
-import math
-import random
 import numpy as np
 import matplotlib.pyplot as plt
+
+import math
+import random
 
 def choose_transport(distances, sustainability_factor):
         transport_distance_car, additional_walk_distance_car = distances["drive"]

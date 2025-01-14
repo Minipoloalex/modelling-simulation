@@ -1,13 +1,14 @@
 from mesa import Agent
+
 from graph_utils import get_closest_node
 
 POSSIBLE_COMPANY_POLICIES = [f"policy{x}" for x in range(5)]
 
 def obtain_budget(policy: str, company_budget: int) -> float:
     if policy == "policy3":
-        return company_budget * 1.25
+        return company_budget * 1.4
     elif policy == "policy4":
-        return company_budget * 0.75
+        return company_budget * 0.6
     return company_budget
 
 class CompanyAgent(Agent):

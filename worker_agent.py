@@ -1,6 +1,8 @@
 from mesa import Agent
-import math
 import networkx as nx
+
+import math
+
 from graph_utils import get_path_information, calculate_distance
 from company_agent import CompanyAgent
 
@@ -57,8 +59,6 @@ class WorkerAgent(Agent):
     def get_initial_sustainability_factor(self) -> float:
         if self.company.policy == "policy0":
             return 0
-        # if self.company.policy == "policy1":
-        #     return 0.5
         return 0.5
 
     def modify_sustainable_factor(self, raise_value) -> None:

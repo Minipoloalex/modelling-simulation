@@ -1,9 +1,10 @@
+import networkx as nx
 import osmnx as ox
 import osmnx.distance as distance
 import osmnx.routing as routing
 import osmnx.truncate as truncate
 from osmnx.utils_geo import bbox_from_point
-import networkx as nx
+
 from collections import namedtuple
 
 # ox.settings.log_console = True    # Enable OSMnx debugging
@@ -82,18 +83,18 @@ def get_path_information(
 
     return PathInformation(path, transport_distance, additional_distance)
 
-def random_position_within_radius(rng, center_position: tuple[float, float], bbox_distance: float):
+def random_position_within_bouding_box(rng, center_position: tuple[float, float], *, bbox_distance_meters: float):
     """
-    Generate a random latitude and longitude within a specified radius from a center position.
+    Generate a random latitude and longitude within a specified bounding box from a center position.
 
     Parameters:
     - center_position: tuple[float, float], the center latitude and longitude (lat, lon)
-    - radius: float, the radius in meters within which to generate the random position
+    - bbox_distance: float, the bounding box distance in meters within which to generate the random position
 
     Returns:
     - tuple[float, float]: the random latitude and longitude
     """
-    west, south, east, north = bbox_from_point(center_position, bbox_distance)
+    west, south, east, north = bbox_from_point(center_position, bbox_distance_meters)
 
     random_lat = rng.uniform(south, north)
     random_lon = rng.uniform(west, east)
