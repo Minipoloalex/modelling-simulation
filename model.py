@@ -19,8 +19,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # CO2 is in grams
-CAR_CO2_VALUE = 250
-ESCOOTER_CO2_VALUE = 67
+CAR_CO2_VALUE = 250     # Value of reference found here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+ESCOOTER_CO2_VALUE = 67 # Value of reference found here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
 DEFAULT_CO2_BUDGET_PER_EMPLOYEE = int(1e3)   # Per employee
 
 class SustainabilityModel(Model):
@@ -61,7 +61,6 @@ class SustainabilityModel(Model):
         self.data_collector = DataCollector(
             model_reporters={
                 "CO2_emissions": self.calculate_CO2_emissions, 
-                "Time Spent in transports per agent": self.calculate_time_spent_in_transports,  # not plotted yet (should it be plotted?)
                 "CO2_avg_per_company": self.calculate_CO2_avg_per_company,
                 "CO2_avg_per_company_type": self.calculate_CO2_avg_per_company_type,
                 "transport_costs": self.calculate_transport_costs,
@@ -134,17 +133,6 @@ class SustainabilityModel(Model):
                 final_dict[policy]["walk"] += worker.kms_walk[0]
         return final_dict
 
-    def calculate_time_spent_in_transports(self):
-        final_dict = {}
-        for agent in self.schedule.agents:
-            if isinstance(agent, WorkerAgent):
-                time_kms_Car = agent.kms_car[1] / 40 # kms / 40km/h = time in hours
-                time_kms_e_scooter = agent.kms_electric_scooter[1] * 12 # kms / 12km/h = time in hours
-                time_kms_walk = agent.kms_walk[1] / 3.5 # kms / 3.5km/h = time in hours
-                time_kms_bycicle = agent.kms_bycicle[1] / 15 # kms / 15km/h = time in hours
-                final_dict[agent.unique_id] = {"Time spent driving car": time_kms_Car, "Time spent using an electrical scooter": time_kms_e_scooter, "Time spent walking:": time_kms_walk, "Time spent bycicling":  time_kms_bycicle}
-        return final_dict
-
     def get_total_co2(self, agent: WorkerAgent) -> float:
         return agent.kms_car[1] * CAR_CO2_VALUE + agent.kms_electric_scooter[1] * ESCOOTER_CO2_VALUE
 
@@ -152,8 +140,8 @@ class SustainabilityModel(Model):
         CO2_kms_car = 0
         CO2_kms_e_scooter = 0
         for agent in self.worker_agents:
-            CO2_kms_car += agent.kms_car[1] * CAR_CO2_VALUE # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
-            CO2_kms_e_scooter += agent.kms_electric_scooter[1] * ESCOOTER_CO2_VALUE # value of reference that I found in here: https://nought.tech/blogs/journal/are-e-scooters-good-for-the-environment#blog
+            CO2_kms_car += agent.kms_car[1] * CAR_CO2_VALUE
+            CO2_kms_e_scooter += agent.kms_electric_scooter[1] * ESCOOTER_CO2_VALUE
 
         return {
             "car": CO2_kms_car,
@@ -197,6 +185,19 @@ class SustainabilityModel(Model):
                 total_cost = cost_car + cost_electric_scooter 
                 transport_costs.append(total_cost)
         return transport_costs
+    
+    def calculate_transport_costs_for_company(self,company):
+        cost_per_km_car = 0.09  # cars with a consume cost of -> 5.0L/100km; 1L of gasoline -> 1.70; VALOR EM EUROS
+        cost_per_km_electric_scooter = 0.003 # 25km -> 225Wh ; 1 KWh -> 0.312 ; VALOR EM EUROS  
+
+        transport_costs = []
+        for agent in self.schedule.agents:
+            if isinstance(agent, WorkerAgent) and agent.company == company:
+                cost_car = agent.kms_car[1] * cost_per_km_car
+                cost_electric_scooter = agent.kms_electric_scooter[1] * cost_per_km_electric_scooter
+                total_cost = cost_car + cost_electric_scooter 
+                transport_costs.append(total_cost)
+        return transport_costs
 
     def step(self):
         self.schedule.step()
@@ -210,18 +211,16 @@ class SustainabilityModel(Model):
             for agent in self.worker_agents:
                 agent.switch_path()
 
-            if self.path_switches == 2:
-                self.finished = True
-
             if self.path_switches % 2 == 0:
+                print ("Day Passed")
                 self.new_day_steps.append(self.steps)
-
+                print(len(self.new_day_steps))
                 for company in self.company_agents:
                     if company.policy != "policy0" and company.policy != "policy1":
                         company.check_policies()
-    @property
-    def days_complete(self):
-        return len(self.new_day_steps)
+
+                if len(self.new_day_steps) == 30:
+                    self.finished = True
 
 def get_transport_usage_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
     """
@@ -433,5 +432,41 @@ def get_transport_costs_plot(model: SustainabilityModel, figsize: Optional[tuple
     ax.set_xlabel("Time Step")
     ax.set_ylabel("Transport costs per employee (€)")
     ax.legend()
+    fig.tight_layout()
+    return fig
+
+def get_emissions_plot_company_comparison(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
+    # Categorize companies
+    sustainable_companies = [company for company in model.company_agents if company.policy in ["policy1"]]
+    non_sustainable_companies = [company for company in model.company_agents if company.policy in ["policy0"]]
+
+    # Calculate averages
+    sustainable_emissions = np.mean([model.get_total_co2(agent) for company in sustainable_companies for agent in company.workers])
+    non_sustainable_emissions = np.mean([model.get_total_co2(agent) for company in non_sustainable_companies for agent in company.workers])
+    print(sustainable_emissions, non_sustainable_emissions)
+    # Plot the comparison
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.bar(["Sustainable", "Non-Sustainable"], [sustainable_emissions, non_sustainable_emissions])
+
+    ax.set_title("Comparison of Emissions")
+    ax.set_ylabel("Emissions")
+    fig.tight_layout()
+    return fig
+
+def get_costs_plot_company_comparison(model, figsize=None):
+    # Categorize companies
+    sustainable_companies = [company for company in model.company_agents if company.policy in ["policy1"]]
+    non_sustainable_companies = [company for company in model.company_agents if company.policy in ["policy0"]]
+
+    # Calculate averages
+    sustainable_costs = np.mean([model.calculate_transport_costs_for_company(company) for company in sustainable_companies])
+    non_sustainable_costs = np.mean([model.calculate_transport_costs_for_company(company) for company in non_sustainable_companies])
+    print(sustainable_costs, non_sustainable_costs)
+    # Plot the comparison
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.bar(["Sustainable", "Non-Sustainable"], [sustainable_costs, non_sustainable_costs])
+
+    ax.set_title("Comparison of Costs")
+    ax.set_ylabel("Costs")
     fig.tight_layout()
     return fig

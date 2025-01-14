@@ -54,7 +54,7 @@ after = time.time()
 print_time_taken(before, after, "create the model")
 
 before = time.time()
-while not model.days_complete == 31:
+while not model.finished:
     model.step()
 after = time.time()
 print_time_taken(before, after, "simulation")
@@ -81,3 +81,10 @@ cost_benefit_per_employee_plot.savefig("cost_benefit_per_employee.png")
 
 transport_usage_per_type_plot = get_total_transport_usage_plot_per_company_type(model)
 transport_usage_per_type_plot.savefig("transport_usage_per_type_plot.png")
+
+comparison_emissions_plot = get_emissions_plot_company_comparison(model)
+comparison_emissions_plot.savefig("emissions_comparison.png")
+
+comparison_costs_plot = get_costs_plot_company_comparison(model)
+comparison_costs_plot.savefig("costs_comparison.png")
+

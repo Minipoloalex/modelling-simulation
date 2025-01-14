@@ -60,7 +60,6 @@ class CompanyAgent(Agent):
                 -100,
             )
         ]
-        # print(f"Budget diff %: {budget_diff_percent}, Factor {factor}")
 
         for agent in self.workers:
             agent.modify_sustainable_factor(factor)
