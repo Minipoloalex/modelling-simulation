@@ -30,7 +30,7 @@ class WorkerAgent(Agent):
         self.kms_electric_scooter = (0, 0)
         self.activities_during_day = []
         self.home_position = home_position
-        self.sustainability_factor = 0 if self.company.policy == "policy0" else 0.3
+        self.sustainability_factor = self.get_initial_sustainability_factor()
 
         self.information_to_work = {
             type: get_path_information(
@@ -53,6 +53,13 @@ class WorkerAgent(Agent):
         }
         self.transport_chosen: str = self.choose_transport(self.distances_to_choose_transport)
         self.__setup_transport_chosen()
+
+    def get_initial_sustainability_factor(self) -> float:
+        if self.company.policy == "policy0":
+            return 0
+        # if self.company.policy == "policy1":
+        #     return 0.5
+        return 0.5
 
     def modify_sustainable_factor(self, raise_value) -> None:
         self.sustainability_factor *= raise_value

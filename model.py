@@ -277,9 +277,9 @@ def get_total_transport_usage_plot_per_company_type(
         ax.bar(x + i * width, values[i], width, label=policy)
 
     # Customize plot
-    ax.set_xlabel("Transports")
-    ax.set_ylabel("Number of choices")
-    ax.set_title("Transport usage by Company Policy")
+    ax.set_title("Transport usage by company policy")
+    ax.set_xlabel("Transport Method")
+    ax.set_ylabel("Number of Choices")
     ax.set_xticks(x + width * (len(policies) - 1) / 2)
     ax.set_xticklabels(transports)
     ax.legend(title="Policies")
@@ -307,14 +307,14 @@ def get_co2_emissions_plot(model: SustainabilityModel, figsize: Optional[tuple[f
         )
     ax.plot(timesteps, total_co2_emissions, label="Total")
 
-    ax.set_title("Total CO2 Emissions over time")
+    ax.set_title("Carbon Dioxide Emissions over time")
     ax.set_xlabel("Time Step")
-    ax.set_ylabel("CO2 Emissions")
+    ax.set_ylabel("Carbon Dioxide Emissions (g)")
     ax.legend()
     fig.tight_layout()
     return fig
 
-def get_budget_plot_line_points(
+def _get_budget_plot_line_points(
     new_day_steps: list[int], curr_day_step, budget_per_day: float,
 ) -> tuple[list[int], list[float]]:
     """
@@ -334,7 +334,11 @@ def get_budget_plot_line_points(
     return xl, yl
 
 
-def get_co2_budget_per_company_type_plot(model: SustainabilityModel, figsize: Optional[tuple[float, float]] = None) -> Figure:
+def get_co2_budget_per_company_type_plot(
+    model: SustainabilityModel,
+    figsize: Optional[tuple[float, float]] = None,
+    plot_budget_lines: bool = False,
+) -> Figure:
     co2_emissions_per_company_type = model.data_collector \
         .get_model_vars_dataframe()["CO2_avg_per_company_type"]
 
@@ -360,12 +364,13 @@ def get_co2_budget_per_company_type_plot(model: SustainabilityModel, figsize: Op
     fig, ax = plt.subplots(figsize=figsize)
     policy_nr = 0
     for budget, policies in budgets.items():
-        budget_xs, budget_ys = get_budget_plot_line_points(model.new_day_steps, model.steps, budget)
-        ax.plot(
-            budget_xs, budget_ys,
-            linestyle="--", color=colors[policy_nr], drawstyle='steps-post',
-            label=f"Budget for " + ", ".join(policies),
-        )
+        if plot_budget_lines:
+            budget_xs, budget_ys = _get_budget_plot_line_points(model.new_day_steps, model.steps, budget)
+            ax.plot(
+                budget_xs, budget_ys,
+                linestyle="--", color=colors[policy_nr], drawstyle='steps-post',
+                label=f"Budget for " + ", ".join(policies),
+            )
 
         for policy in policies:
             policy_co2_emissions = co2_emissions_per_company_type.apply(
@@ -379,10 +384,11 @@ def get_co2_budget_per_company_type_plot(model: SustainabilityModel, figsize: Op
             )
             policy_nr += 1
 
-    ax.set_title("Average CO2 emissions per company type (policy)")
+    ax.set_title("Carbon Dioxide emissions per company type")
     ax.set_xlabel("Time Step")
-    ax.set_ylabel("CO2 Emissions")
-    ax.legend()
+    ax.set_ylabel("Carbon Dioxide Emissions per company type (g)")
+    if plot_budget_lines:
+        ax.legend()
     fig.tight_layout()
     return fig
 
@@ -395,19 +401,19 @@ def get_co2_budget_plot(model: SustainabilityModel, figsize: Optional[tuple[floa
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    ax.plot(timesteps, co2_mean, label="Mean CO2 Emissions", color="blue")
-    ax.fill_between(timesteps, co2_mean - co2_std, co2_mean + co2_std, color="blue", alpha=0.2, label="Std Dev")
+    ax.plot(timesteps, co2_mean, label="Mean of CO2 emissions", color="blue")
+    ax.fill_between(timesteps, co2_mean - co2_std, co2_mean + co2_std, color="blue", alpha=0.2, label="Standard deviation of CO2 emissions")
 
-    budget_xs, budget_ys = get_budget_plot_line_points(model.new_day_steps, model.steps, budget)
+    budget_xs, budget_ys = _get_budget_plot_line_points(model.new_day_steps, model.steps, budget)
     ax.plot(
         budget_xs, budget_ys,
         linestyle="--", color="red", drawstyle='steps-post',
         label="Base Budget Per Employee",
     )
 
-    ax.set_title("CO2 Emissions Per Employee Over Time")
+    ax.set_title("Carbon Dioxide emissions per employee over time")
     ax.set_xlabel("Time Step")
-    ax.set_ylabel("CO2 Emissions")
+    ax.set_ylabel("Carbon Dioxide Emissions per employee (g)")
     ax.legend()
     fig.tight_layout()
     return fig
@@ -420,68 +426,12 @@ def get_transport_costs_plot(model: SustainabilityModel, figsize: Optional[tuple
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    ax.plot(timesteps, cost_mean, label="Mean Transport Costs", color="blue")
-    ax.fill_between(timesteps, cost_mean - cost_std, cost_mean + cost_std, color="blue", alpha=0.2, label="Std Dev")
+    ax.plot(timesteps, cost_mean, label="Mean of transport costs", color="blue")
+    ax.fill_between(timesteps, cost_mean - cost_std, cost_mean + cost_std, color="blue", alpha=0.2, label="Standard deviation of transport costs")
 
-    ax.set_title("Transport Costs Over Time")
+    ax.set_title("Transport costs per employee over time")
     ax.set_xlabel("Time Step")
-    ax.set_ylabel("Transport Costs")
+    ax.set_ylabel("Transport costs per employee (€)")
     ax.legend()
     fig.tight_layout()
     return fig
-
-# Running/Testing the model
-if __name__ == "__main__":
-    num_workers_per_company = 10
-
-    GRAPH_DISTANCE = 5000
-    center = 41.1664384, -8.6016
-    graphs = load_graphs(center, distance_meters=GRAPH_DISTANCE)
-    merged_graph = merge_graphs(graphs)
-    companies = {
-        "policy0": 3,
-        "policy1": 2,
-        "policy2": 4,
-        "policy3": 2,
-        "policy4": 1,
-    }
-    model = SustainabilityModel(
-        num_workers_per_company,
-        companies,
-        graphs,
-        merged_graph,
-        center_position=center,
-        company_location_radius=GRAPH_DISTANCE // 5,
-        agent_home_radius=GRAPH_DISTANCE,
-        seed=42
-    )
-
-    # while not model.finished:
-    #     model.step()
-    for _ in range(500):
-        model.step()
-
-    print(f"Total number of model steps before finishing (one day): {model.steps}")
-
-    # Access the collected data for analysis
-    results = model.data_collector.get_model_vars_dataframe()
-    print(results)
-    print(results["CO2_avg_per_company_type"])
-
-    transport_usage_plot = get_transport_usage_plot(model)
-    transport_usage_plot.savefig("transport_usage.png")
-
-    transport_total_usage_plot = get_total_transport_usage_plot(model)
-    transport_total_usage_plot.savefig("total_transport_usage.png")
-
-    co2_emissions_plot = get_co2_emissions_plot(model)
-    co2_emissions_plot.savefig("co2_emissions.png")
-
-    co2_budget_plot = get_co2_budget_plot(model)
-    co2_budget_plot.savefig("co2_budget.png")
-
-    co2_budget_policy_type_plot = get_co2_budget_per_company_type_plot(model)
-    co2_budget_policy_type_plot.savefig("co2_budget_policy_type.png")
-
-    cost_benefit_per_employee_plot = get_transport_costs_plot(model)
-    cost_benefit_per_employee_plot.savefig("cost_benefit_per_employee.png")
