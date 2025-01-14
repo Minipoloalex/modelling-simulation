@@ -3,16 +3,14 @@ print(f"Mesa version: {mesa.__version__}")
 
 import solara
 from mesa.visualization import SolaraViz
-
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
-
 import networkx as nx
 
 from graph_utils import load_graphs, merge_graphs, create_subgraph_within_radius
 from model import (
     SustainabilityModel,
-    get_transport_usage_plot,
+    get_current_transport_usage_plot,
     get_co2_emissions_plot,
     get_co2_budget_plot,
     get_co2_budget_per_company_type_plot,
@@ -180,7 +178,7 @@ def make_graph_plot(model: SustainabilityModel):
 
 def make_transport_usage_plot(model: SustainabilityModel):
     return convert_to_solara_figure(
-        get_transport_usage_plot(model, figsize=(6, 4))
+        get_current_transport_usage_plot(model, figsize=(6, 4))
     )
 
 def make_co2_emissions_plot(model: SustainabilityModel):

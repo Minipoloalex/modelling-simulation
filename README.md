@@ -54,10 +54,10 @@ These can also be considered as the operation policies of our model and simulati
 | Policy | Budget | Modify Sustainability factor of employees | Init sustainability factor |
 | :-:|:-:|:-:|:-:|
 | 0 | x1 |X | 0 |
-| 1 | x1 | X | 0.3 |
-| 2 | x1 | Y | 0.3 |
-| 3 | x1.25 | Y | 0.3|
-| 4| x0.75 | Y | 0.3|
+| 1 | x1 | X | 0.5 |
+| 2 | x1 | Y | 0.5 |
+| 3 | x1.4 | Y | 0.5 |
+| 4| x0.6 | Y | 0.5 |
 
 
 ## Developers:
