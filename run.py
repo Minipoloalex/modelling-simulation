@@ -4,19 +4,21 @@ from graph_utils import (
     load_graphs,
     merge_graphs,
 )
+from company_agent import POSSIBLE_COMPANY_POLICIES
 from model import *
+from run_utils import parse_arguments, get_companies
+
+args = parse_arguments(POSSIBLE_COMPANY_POLICIES, DEFAULT_CO2_BUDGET_PER_EMPLOYEE)
 
 # Modifiable parameters
-num_workers_per_company = 20
-companies = {
-    "policy0": 6,
-    # "policy1": 3,
-    # "policy2": 3,
-    # "policy3": 3,
-    # "policy4": 3,
-}
-# Default CO2 budget: DEFAULT_CO2_BUDGET_PER_EMPLOYEE
-company_budget_per_employee = DEFAULT_CO2_BUDGET_PER_EMPLOYEE
+num_workers_per_company = args.num_workers_per_company
+companies = get_companies(args, POSSIBLE_COMPANY_POLICIES)
+company_budget_per_employee = args.company_budget_per_employee
+
+print(f"Number of workers per company: {args.num_workers_per_company}")
+print(f"Companies: {companies}")
+print(f"Company budget per employee: {args.company_budget_per_employee} grams")
+
 
 # Non-modifiable parameters
 GRAPH_DISTANCE = 5000

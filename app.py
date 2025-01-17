@@ -1,6 +1,3 @@
-import mesa
-print(f"Mesa version: {mesa.__version__}")
-
 import solara
 from mesa.visualization import SolaraViz
 import matplotlib.pyplot as plt
