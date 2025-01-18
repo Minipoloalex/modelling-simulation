@@ -21,7 +21,7 @@ cd modelling-simulation
 First, to be able to run the simulation, you first need to install several Python packages. The simulation was developed and tested using **Python 3.12**
 
 
-You can run the following code to install all the packages needed for the code.
+You can run the following code to install all the packages needed to run the project.
 ```bash
 pip install -r requirements.txt
 ```
